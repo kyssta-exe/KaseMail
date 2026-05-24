@@ -1,0 +1,3 @@
+# Prompt - Build Installer
+
+Create a one-command installer for KaseMail. It must run on a fresh Ubuntu/Debian VPS, ask for primary domain, mail hostname, panel hostname, webmail hostname, superadmin email/password, timezone, mail core, backup target, POP3, antivirus, MTA-STS, TLS-RPT, DNS automation, and outbound relay settings. It must perform preflight checks, install dependencies, install Docker, deploy the selected mail core, generate DNS records, start services, and write an install report. It must be safe, idempotent, and must never overwrite existing mail data without explicit confirmation.

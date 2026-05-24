@@ -1,0 +1,36 @@
+# Reference architecture when mailcow is installed separately in /opt/mailcow-dockerized.
+# This compose file runs only the custom KaseMail panel and support services.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kasemail
+      POSTGRES_USER: kasemail
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  panel:
+    image: ghcr.io/yourorg/kasemail-panel:latest
+    restart: unless-stopped
+    depends_on: [postgres, redis]
+    environment:
+      DATABASE_URL: postgres://kasemail:${POSTGRES_PASSWORD}@postgres:5432/kasemail
+      REDIS_URL: redis://redis:6379/0
+      MAIL_CORE: mailcow
+      MAILCOW_BASE_URL: ${MAILCOW_BASE_URL:?set}
+      MAILCOW_API_KEY: ${MAILCOW_API_KEY:?set}
+    expose:
+      - "3000"
+
+volumes:
+  postgres_data:
+  redis_data:

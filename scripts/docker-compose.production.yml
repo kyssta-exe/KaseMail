@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kasemail
+      POSTGRES_USER: kasemail
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kasemail -d kasemail"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kasemail
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - kasemail
+
+  app:
+    build: .
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql://kasemail:${DB_PASSWORD}@postgres:5432/kasemail?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      NEXT_PUBLIC_APP_URL: https://${PANEL_DOMAIN}
+      NEXT_PUBLIC_WEBMAIL_URL: https://${WEBMAIL_DOMAIN}
+      NEXT_PUBLIC_DEFAULT_WORKSPACE_ID: ${DEFAULT_WORKSPACE_ID}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - kasemail
+
+volumes:
+  postgres_data:
+
+networks:
+  kasemail:

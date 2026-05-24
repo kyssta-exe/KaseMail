@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPERADMIN
+  WORKSPACE_ADMIN
+  WORKSPACE_USER
+  INDIVIDUAL_USER
+}
+
+enum DomainStatus {
+  CREATED
+  AWAITING_OWNERSHIP
+  DNS_PENDING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum MailboxStatus {
+  CREATED
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+  DELETED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  role         Role     @default(WORKSPACE_USER)
+  twoFactorOn  Boolean  @default(false)
+  twoFactorSecret String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  memberships  WorkspaceMember[]
+  auditLogs    AuditLog[] @relation("ActorAuditLogs")
+  sessions     Session[]
+  settings     UserSettings?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  timezone        String   @default("UTC")
+  signature       String?
+  vacationEnabled Boolean  @default(false)
+  vacationMessage String?
+  defaultSender   String?
+  theme           String   @default("dark")
+  compact         Boolean  @default(false)
+  fontSize        String   @default("md")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Workspace {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  type             String   @default("team")
+  registrationMode String   @default("CLOSED")
+  defaultQuotaMb   Int      @default(10240)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  members          WorkspaceMember[]
+  domains          Domain[]
+  mailboxes        Mailbox[]
+  aliases          Alias[]
+}
+
+model WorkspaceMember {
+  id          String @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  @@unique([workspaceId, userId])
+}
+
+model Domain {
+  id                String       @id @default(cuid())
+  workspaceId       String
+  name              String       @unique
+  status            DomainStatus @default(CREATED)
+  verificationTxt   String?
+  dkimSelector      String?
+  dkimPublicKey     String?
+  catchAllMailboxId String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  workspace         Workspace    @relation(fields: [workspaceId], references: [id])
+  mailboxes         Mailbox[]
+  aliases           Alias[]
+  dnsChecks         DnsCheck[]
+}
+
+model DnsCheck {
+  id        String   @id @default(cuid())
+  domainId  String
+  type      String
+  host      String
+  expected  String
+  actual    String?
+  status    String
+  checkedAt DateTime @default(now())
+  domain    Domain   @relation(fields: [domainId], references: [id])
+}
+
+model Mailbox {
+  id          String        @id @default(cuid())
+  workspaceId String
+  domainId    String
+  localPart   String
+  address     String        @unique
+  status      MailboxStatus @default(CREATED)
+  quotaMb     Int           @default(10240)
+  passwordHash String?
+  mailCoreId  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  domain      Domain        @relation(fields: [domainId], references: [id])
+}
+
+model Alias {
+  id          String   @id @default(cuid())
+  workspaceId String
+  domainId    String
+  address     String   @unique
+  targets     String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  domain      Domain    @relation(fields: [domainId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  workspaceId String?
+  action      String
+  targetType  String
+  targetId    String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("ActorAuditLogs", fields: [actorUserId], references: [id])
+}
+
+model MailMigrationJob {
+  id          String   @id @default(cuid())
+  workspaceId String
+  mailboxId   String
+  sourceHost  String
+  sourceUser  String
+  status      String   @default("pending")
+  progress    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BackupJob {
+  id        String    @id @default(cuid())
+  status    String    @default("pending")
+  target    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  metadata  Json?
+}

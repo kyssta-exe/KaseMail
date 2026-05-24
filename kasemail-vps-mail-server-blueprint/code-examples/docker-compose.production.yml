@@ -1,0 +1,37 @@
+services:
+  panel:
+    image: ghcr.io/yourorg/kasemail-panel:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set}
+      REDIS_URL: redis://redis:6379/0
+      MAIL_CORE: ${MAIL_CORE:-mailcow}
+      MAILCOW_BASE_URL: ${MAILCOW_BASE_URL:-}
+      MAILCOW_API_KEY: ${MAILCOW_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+    expose:
+      - "3000"
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kasemail
+      POSTGRES_USER: kasemail
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
