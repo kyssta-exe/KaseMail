@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { verifyPassword, createSession } from "@/lib/auth"
+import { setCsrfCookie } from "@/lib/csrf"
 import { cookies } from "next/headers"
 import { apiHandler } from "@/lib/api-handler"
 import { z } from "zod"
@@ -16,6 +17,7 @@ export const POST = apiHandler(async (req) => {
   if (!valid) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
 
   const token = await createSession(user.id)
+  await setCsrfCookie()
   const cookieStore = await cookies()
   cookieStore.set("session", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/" })
 

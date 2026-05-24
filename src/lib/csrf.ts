@@ -17,7 +17,7 @@ export async function setCsrfCookie(): Promise<string> {
   const token = uuidv4()
   const cookieStore = await cookies()
   cookieStore.set(CSRF_COOKIE, token, {
-    httpOnly: true,
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

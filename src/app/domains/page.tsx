@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { AdminShell } from "@/components/layout/admin-shell"
@@ -26,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Globe,
   Plus,
@@ -58,6 +59,7 @@ function mapDomain(domain: any): Domain {
 }
 
 export default function DomainsPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [domains, setDomains] = useState<Domain[]>([])
@@ -67,6 +69,11 @@ export default function DomainsPage() {
 
   useEffect(() => {
     api.getDomains().then((items) => setDomains(items.map(mapDomain)))
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("add") === "true") {
+      setDrawerOpen(true)
+    }
   }, [])
 
   const filtered = domains.filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
@@ -84,12 +91,11 @@ export default function DomainsPage() {
     try {
       const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID || ""
       if (!workspaceId) throw new Error("NEXT_PUBLIC_DEFAULT_WORKSPACE_ID is not configured")
-      await api.createDomain({ workspaceId, name: domainName.trim(), defaultQuotaMb: Number(quotaGb) * 1024, catchAll })
-      const items = await api.getDomains()
-      setDomains(items.map(mapDomain))
-      toast.success("Domain added. DNS setup is ready.")
+      const res = await api.createDomain({ workspaceId, name: domainName.trim(), defaultQuotaMb: Number(quotaGb) * 1024, catchAll })
+      toast.success("Domain added. Redirecting to DNS setup...")
       setDrawerOpen(false)
       setDomainName("")
+      router.push(`/dns?domainId=${res.domain.id}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Domain creation failed")
     }

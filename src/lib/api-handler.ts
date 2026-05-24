@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "./auth"
-import { csrfGuard } from "./csrf"
+import { csrfGuard, setCsrfCookie } from "./csrf"
 import { rateLimit } from "./rate-limit"
 import { AppError, UnauthorizedError } from "./errors"
+import { cookies } from "next/headers"
 
 type RateLimitRule = { key: string; max: number; windowMs: number }
 
@@ -28,6 +29,10 @@ export function apiHandler(
 
       if (config.auth !== false) {
         user = await requireAuth(config.roles)
+        const cookieStore = await cookies()
+        if (!cookieStore.get("csrf-token")?.value) {
+          await setCsrfCookie()
+        }
       }
 
       const method = req.method.toUpperCase()

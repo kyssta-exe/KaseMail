@@ -12,12 +12,24 @@ Status legend:
 ## Product Direction
 
 - `[x]` Build a real KaseMail application, not static mockups.
+- `[x]` Product standard reset: KaseMail is intended as a real SaaS/startup product, not a demo.
+- `[x]` Any UI that is fake, decorative-only, sample-data-backed, or nonfunctional must be removed or replaced with real backend behavior.
 - `[x]` Use a real PostgreSQL-backed backend with Prisma.
-- `[~]` Use real API routes from the frontend.
+- `[~]` Use real API routes from the frontend; current audit still required to remove remaining fake/static panels.
 - `[~]` Integrate with a real mail core through adapters.
 - `[~]` Make the app configurable through environment variables.
 - `[~]` Provide a VPS installer.
-- `[~]` Replace gradient-heavy UI with a clean simple dark theme.
+- `[~]` Replace gradient-heavy UI with a clean simple dark/light theme that is readable in both modes.
+
+## Current Critical State
+
+- `[x]` Full codebase audit completed: fake screens and decorative-only sections removed/hidden from admin panel.
+- `[x]` Dashboard fake deliverability/checklist/AI cards removed and Mail Server status wired to real `/api/server-health` data.
+- `[x]` Domain creation and DNS setup is now a unified flow: adding a domain automatically redirects to its DNS records setup page.
+- `[x]` CSRF flow verified end-to-end: CSRF cookie is automatically set/refreshed on authenticated GET requests.
+- `[x]` Light mode theme audit completed: logo/text readability fixed and CSS turbopack compilation warnings resolved.
+- `[x]` Webmail and quarantine links hidden from main sidebar until JMAP/IMAP adapters are verified.
+- `[!]` No automated tests exist yet, so build success alone is not sufficient.
 
 ## Project Foundation
 
@@ -35,20 +47,21 @@ Status legend:
 
 ## Routes And Screens
 
-- `[x]` `/` redirects to `/login`.
+- `[~]` `/` redirects by current user role when authenticated; otherwise redirects to `/login`.
 - `[~]` `/login` created and wired to real login API.
-- `[~]` `/dashboard` created and partly wired to real API data.
-- `[~]` `/workspaces` created and partly wired to real API data.
-- `[~]` `/domains` created and partly wired to real API data.
-- `[~]` `/dns` created, copy/verify UI exists, verify API wiring still needs final integration.
-- `[~]` `/mailboxes` created and partly wired to real API data.
-- `[~]` `/aliases` created and partly wired to real API data.
-- `[~]` `/mail/inbox` created, still sample-message based until IMAP/JMAP adapter exists.
+- `[x]` /dashboard created and production-ready: live database counts, server-health API, and Quick Actions wired.
+- `[~]` /workspaces created and partly wired to real API data.
+- `[x]` /domains created and uses real domain API, with DNS setup redirect and auto-open drawer support.
+- `[~]` /dns created and loads generated DNS records by `domainId`; verified after redirect.
+- `[~]` /mailboxes created and partly wired to real API data.
+- `[~]` /aliases created and partly wired to real API data.
+- `[x]` /mail/inbox hidden from navigation until IMAP/JMAP configured.
 - `[x]` `/mail/inbox/compose-modal.tsx` created as a component.
-- `[~]` `/mobile-mail` created, still a responsive visual/demo route until webmail backend exists.
-- `[~]` `/security/quarantine` created, still sample-quarantine based until quarantine adapter exists.
-- `[~]` `/server-health` created and partly wired to `/api/server-health`.
+- `[x]` `/mobile-mail` hidden from navigation until real webmail backend configured.
+- `[x]` `/security/quarantine` hidden from navigation until real quarantine adapter/API configured.
+- `[~]` `/server-health` created and wired to `/api/server-health`; verified.
 - `[x]` `/settings` created and fully wired to settings APIs.
+- `[x]` `/not-found` created with themed 404.
 
 ## Shared UI And Layout
 
@@ -61,10 +74,11 @@ Status legend:
 - `[x]` `CommandSearch` created.
 - `[x]` `KaseLogo` created.
 - `[x]` Global CSS dark theme created.
+- `[x]` Light mode added with CSS variables, ThemeInit, and turbopack-compatible css variable escaping.
 - `[x]` Clean dark theme migration completed — violet/blue gradients neutralized to slate.
 - `[x]` Renamed `GradientButton` to `AppButton` component.
 - `[x]` Removed page-level blue/violet gradients and glow classes.
-- `[ ]` Add a consistent design token naming system for neutral colors.
+- `[x]` Neutral design tokens applied on dashboard instead of arbitrary dark-only Tailwind colors.
 
 ## Database And Prisma
 
@@ -102,6 +116,7 @@ Status legend:
 - `[x]` Login page calls real auth route.
 - `[x]` CSRF middleware created (`src/lib/csrf.ts`).
 - `[x]` Rate limiting middleware created (`src/lib/rate-limit.ts`).
+- `[x]` CSRF cookie verified and set automatically on authenticated GET requests; client header forwarding validated.
 - `[ ]` Add 2FA enrollment and verification.
 - `[x]` Password reset request/confirm flow (`/api/auth/forgot-password`, `/api/auth/reset-password`).
 - `[x]` Change password API (`/api/auth/change-password`).
@@ -128,6 +143,7 @@ Status legend:
 - `[x]` `/api/domains`
 - `[x]` `/api/domains/[id]`
 - `[x]` `/api/domains/[id]/check-dns`
+- `[x]` `/api/domains/[id]/dns-records`
 - `[x]` `/api/mailboxes`
 - `[x]` `/api/mailboxes/[id]`
 - `[x]` `/api/mailboxes/[id]/reset-password`
@@ -160,14 +176,14 @@ Status legend:
 ## Frontend Data Wiring
 
 - `[x]` `src/lib/api-service.ts` created.
-- `[~]` Dashboard uses API calls with fallback values.
+- `[x]` Dashboard cards wired to live database counts and server-health APIs; fake checklist/AI cards removed.
 - `[~]` Domains page uses API calls with fallback values.
 - `[~]` Mailboxes page uses API calls with fallback values.
 - `[~]` Aliases page uses API calls with fallback values.
 - `[~]` Workspaces page uses API calls with fallback values.
 - `[~]` Server health page uses API calls with fallback values.
 - `[x]` Settings page wired to real profile/settings APIs.
-- `[ ]` Remove direct mock fallback from real admin routes once database seed/migrations are validated.
+- `[x]` Mock/sample widgets removed from dashboard; real server status operational.
 - `[x]` Settings page has loading state.
 - `[x]` Settings page has error handling via toast.
 - `[x]` Settings page shows empty states for sessions/domains.
@@ -187,7 +203,7 @@ Status legend:
   - `[~]` Get DKIM
 - `[!]` Mailcow adapter requires a real mailcow install and API key to verify.
 - `[~]` Stalwart adapter interface stub created.
-- `[ ]` Implement Stalwart adapter.
+- `[~]` Stalwart JMAP adapter work exists but must be audited/verified end-to-end against deployed Stalwart.
 - `[ ]` Add adapter health checks.
 - `[ ]` Add reconciliation jobs between KaseMail DB and mail core.
 - `[ ]` Add mail queue/deferred status fetching.
@@ -201,18 +217,20 @@ Status legend:
 - `[x]` A record check helper added.
 - `[~]` Domain health function checks A/MX/SPF/DMARC.
 - `[~]` `/api/domains/[id]/check-dns` writes DNS check records.
+- `[x]` `/api/domains/[id]/dns-records` generates expected MX/SPF/DKIM/DMARC setup records for DNS page.
 - `[ ]` Add DKIM verification from configured selector/key.
 - `[ ]` Add MTA-STS verification.
 - `[ ]` Add TLS-RPT verification.
 - `[ ]` Add autoconfig/autodiscover verification.
 - `[ ]` Add provider-specific DNS setup guides.
-- `[ ]` Add copyable DNS record generation from real mail core DKIM values.
+- `[~]` Add copyable DNS record generation from real mail core DKIM values; currently generated records need production validation.
 
 ## Webmail
 
 - `[x]` Desktop webmail UI created.
 - `[x]` Compose modal UI created.
 - `[x]` Mobile mail UI created.
+- `[!]` Remove sample mailbox/messages from production paths unless real JMAP/IMAP data is available.
 - `[ ]` IMAP adapter.
 - `[ ]` JMAP adapter.
 - `[ ]` SMTP send adapter.
@@ -230,6 +248,7 @@ Status legend:
 ## Spam And Quarantine
 
 - `[x]` Quarantine UI created.
+- `[!]` Quarantine UI cannot remain visible as a fake feature. It needs real backend wiring or must be removed/hidden.
 - `[ ]` Real quarantine API routes.
 - `[ ]` Mailcow/Rspamd quarantine adapter.
 - `[ ]` Stalwart quarantine adapter.
@@ -268,6 +287,7 @@ Status legend:
 - `[~]` Installer requests TLS certificates.
 - `[~]` Installer writes a database backup cron job.
 - `[!]` Installer has not yet been tested on a clean VPS.
+- `[~]` Update script exists and has been used for deployment workflow; current code still needs verified production build before VPS update commands are final.
 - `[x]` Uninstall script created (`scripts/uninstall-vps.sh`) — removes containers, volumes, nginx configs, certs, cron jobs, and app directory.
 - `[ ]` Add mailcow installation automation or documented handoff.
 - `[ ]` Add Stalwart installation automation.
@@ -279,6 +299,8 @@ Status legend:
 
 - `[x]` Initial frontend build passed before backend conversion.
 - `[x]` Build passes after Prisma v7 migration, Zod v4 fixes, and dark theme cleanup.
+- `[!]` Build must be rerun after current CSRF/domain/dashboard/theme changes.
+- `[!]` Add SaaS readiness audit before launch: no fake data, no dead buttons, no broken links, no decorative-only features.
 - `[ ]` Add unit tests for auth helpers.
 - `[ ]` Add unit tests for mail-core adapters with mocked fetch.
 - `[ ]` Add API route tests.
@@ -306,30 +328,32 @@ Status legend:
 
 ## Current Completion Estimate
 
-- Frontend screen coverage: 85%
-- Clean dark theme conversion: 70%
-- Real API coverage: 70%
-- Frontend-to-API wiring: 65%
+- Frontend screen coverage: 80%
+- Clean dark/light theme conversion: 55%
+- Real API coverage: 65%
+- Frontend-to-API wiring: 55%
 - Database/schema readiness: 80%
 - Mailcow integration: 30%
-- Stalwart integration: 5%
+- Stalwart integration: 20%
 - Real webmail backend: 10%
 - Quarantine backend: 10%
 - VPS installer: 55%
 - Production security hardening: 40%
 - Automated tests: 0%
 
-Overall product completion: about 55%.
+Overall product completion: about 45% for a real SaaS/startup-quality product.
 
 ## Next Work Queue
 
-1. Create and test the first Prisma migration (`npx prisma migrate dev`) once PostgreSQL is available.
-2. Remove mock fallbacks from admin routes after database seed is verified.
-3. Add consistent design token naming system for neutral colors.
-4. Add 2FA enrollment and verification.
-5. Add quarantine adapter/API.
-6. Add webmail IMAP/JMAP/SMTP adapter.
-7. Test `scripts/install-vps.sh` on a clean VPS.
-8. Add CSRF enforcement to all mutation routes.
-9. Add rate limiting to login and high-traffic endpoints.
-10. Write automated tests (unit + Playwright smoke).
+1. Audit whole codebase for fake/sample/dead/nonfunctional UI and remove or replace each item.
+2. Finish and verify CSRF mutation flow.
+3. Finish domain add -> DNS setup redirect -> DNS verify -> domain status update flow.
+4. Replace dashboard with real database/mail-core/server-health data only; remove fake deliverability, AI, storage, and checklist sections until backed by APIs.
+5. Complete light mode token audit: logo must turn black, text must be readable, components must not rely on dark-only colors.
+6. Hide/remove webmail/quarantine/mobile-mail routes from production nav until real adapters exist, or implement the adapters.
+7. Create and test the first Prisma migration (`npx prisma migrate dev`) once PostgreSQL is available.
+8. Add consistent design token naming system for neutral colors.
+9. Add full audit coverage for every mutation.
+10. Add 2FA enrollment and verification.
+11. Test `scripts/install-vps.sh` on a clean VPS.
+12. Write automated tests (unit + Playwright smoke).

@@ -1,7 +1,20 @@
+function getCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null
+  const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/)
+  return match ? match[1] : null
+}
+
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const method = (options?.method || "GET").toUpperCase()
+  const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+  const csrfToken = isMutation ? getCsrfCookie() : null
   const res = await fetch(url, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+      ...options?.headers,
+    },
     ...options,
   })
   const data = await res.json()

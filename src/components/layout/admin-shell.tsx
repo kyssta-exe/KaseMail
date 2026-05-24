@@ -36,7 +36,7 @@ const allNavItems = [
   { label: "DNS Setup", href: "/dns", icon: Network, roles: ["SUPERADMIN", "WORKSPACE_ADMIN"] as Role[] },
   { label: "Server Health", href: "/server-health", icon: ShieldCheck, roles: ["SUPERADMIN"] as Role[] },
   { label: "Audit Logs", href: "/audit-logs", icon: History, roles: ["SUPERADMIN"] as Role[] },
-  { label: "Security", href: "/security/quarantine", icon: Shield, roles: ["SUPERADMIN", "WORKSPACE_ADMIN"] as Role[] },
+  // { label: "Security", href: "/security/quarantine", icon: Shield, roles: ["SUPERADMIN", "WORKSPACE_ADMIN"] as Role[] },
   { label: "Settings", href: "/settings", icon: Settings, roles: ["SUPERADMIN", "WORKSPACE_ADMIN"] as Role[] },
 ]
 
@@ -114,7 +114,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className="border-t px-4 py-3" style={{ borderColor: "var(--sidebar-border)" }}>
+          {/* <div className="border-t px-4 py-3" style={{ borderColor: "var(--sidebar-border)" }}>
             <Link
               href="/mail/inbox"
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#a7b0c3] hover:text-[#f8fafc] hover:bg-white/[0.04] transition-all"
@@ -122,7 +122,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <PanelRightOpen className="h-4 w-4" />
               Switch to Webmail
             </Link>
-          </div>
+          </div> */}
 
           <div className="border-t px-4 py-3" style={{ borderColor: "var(--sidebar-border)" }}>
             <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">

@@ -6,7 +6,6 @@ import { getMailCore } from "@/lib/mail-core"
 import { z } from "zod"
 
 const createSchema = z.object({
-  workspaceId: z.string(),
   name: z.string().min(1),
   defaultQuotaMb: z.number().optional(),
   catchAll: z.boolean().optional(),
@@ -18,7 +17,7 @@ export const GET = apiHandler(async (_req, { user }) => {
       workspace: { members: { some: { userId: user.id } } },
     },
     include: {
-      dnsChecks: true,
+      dnsChecks: { orderBy: { checkedAt: "desc" }, take: 1 },
       _count: { select: { mailboxes: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -28,18 +27,32 @@ export const GET = apiHandler(async (_req, { user }) => {
 
 export const POST = apiHandler(async (req, { user }) => {
   const body = createSchema.parse(await req.json())
+
+  const membership = await prisma.workspaceMember.findFirst({
+    where: { userId: user.id },
+    include: { workspace: true },
+  })
+  if (!membership) return NextResponse.json({ error: "No workspace found for user" }, { status: 400 })
+
   const domain = await prisma.domain.create({
     data: {
-      workspaceId: body.workspaceId,
-      name: body.name,
+      workspaceId: membership.workspaceId,
+      name: body.name.toLowerCase(),
       status: "CREATED",
     },
   })
+
   const mailCore = getMailCore()
-  await mailCore.createDomain(body.name)
+  try {
+    await mailCore.createDomain(body.name.toLowerCase())
+  } catch (e: any) {
+    await prisma.domain.delete({ where: { id: domain.id } })
+    return NextResponse.json({ error: `Mail server error: ${e.message}` }, { status: 502 })
+  }
+
   await logAudit({
     actorUserId: user.id,
-    workspaceId: body.workspaceId,
+    workspaceId: domain.workspaceId,
     action: "DOMAIN_CREATED",
     targetType: "Domain",
     targetId: domain.id,
