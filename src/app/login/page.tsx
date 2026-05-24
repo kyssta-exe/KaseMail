@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Globe, Shield, Users, ChevronRight } from "lucide-react"
@@ -136,19 +137,22 @@ export default function LoginPage() {
           </motion.p>
 
           {/* Feature cards */}
-          <motion.div {...fadeUp(0.35)} className="mt-8 flex gap-5">
+          <motion.div {...fadeUp(0.35)} className="mt-8 grid max-w-[720px] grid-cols-3 gap-5">
             {featureCards.map((card) => {
               const Icon = card.icon
               return (
                 <GlassCard
                   key={card.title}
-                  className="w-[190px] shrink-0 rounded-[18px] p-5"
+                  className="group relative min-h-[168px] overflow-hidden rounded-[24px] border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,23,42,0.72),rgba(15,23,42,0.28))] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-slate-400/20 hover:bg-[linear-gradient(145deg,rgba(30,41,59,0.72),rgba(15,23,42,0.34))] hover:shadow-[0_24px_70px_rgba(0,0,0,0.34)]"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700/20">
-                    <Icon className="h-4.5 w-4.5 text-[#8b5cf6]" />
+                  <div className="pointer-events-none absolute -right-14 -top-14 h-32 w-32 rounded-full bg-slate-300/[0.03] blur-2xl transition-opacity group-hover:opacity-100" />
+                  <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-slate-300/25 to-transparent" />
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors group-hover:bg-white/[0.07]">
+                    <Icon className="h-5 w-5 text-slate-200" />
                   </div>
-                  <h3 className="text-[15px] font-semibold text-white">{card.title}</h3>
-                  <p className="mt-1 text-[13px] leading-snug text-[#a7b0c3]">{card.helper}</p>
+                  <h3 className="max-w-[150px] text-[17px] font-semibold leading-snug text-white">{card.title}</h3>
+                  <p className="mt-2 max-w-[155px] text-[14px] leading-relaxed text-[#a7b0c3]">{card.helper}</p>
+                  <div className="absolute bottom-4 right-4 h-1.5 w-1.5 rounded-full bg-slate-300/30 transition-all group-hover:w-7" />
                 </GlassCard>
               )
             })}
@@ -163,11 +167,11 @@ export default function LoginPage() {
           {...fadeUp(0.45)}
           className="relative z-10 flex items-center gap-6 pb-2 text-[13px] text-[#5a6276]"
         >
-          <span>&copy; 2024 Kase. All rights reserved.</span>
+          <span>&copy; 2026 Kase. All rights reserved.</span>
           <span className="h-3 w-px bg-white/8" />
-          <button className="transition-colors hover:text-[#a7b0c3]">Privacy</button>
+          <Link href="/privacy" className="transition-colors hover:text-[#a7b0c3]">Privacy</Link>
           <span className="h-3 w-px bg-white/8" />
-          <button className="transition-colors hover:text-[#a7b0c3]">Terms</button>
+          <Link href="/terms" className="transition-colors hover:text-[#a7b0c3]">Terms</Link>
         </motion.div>
       </div>
 
@@ -320,11 +324,11 @@ export default function LoginPage() {
 
         {/* Mobile footer */}
         <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4 text-[12px] text-[#5a6276] lg:hidden">
-          <span>&copy; 2024 Kase</span>
+          <span>&copy; 2026 Kase</span>
           <span className="h-3 w-px bg-white/8" />
-          <button className="hover:text-[#a7b0c3]">Privacy</button>
+          <Link href="/privacy" className="hover:text-[#a7b0c3]">Privacy</Link>
           <span className="h-3 w-px bg-white/8" />
-          <button className="hover:text-[#a7b0c3]">Terms</button>
+          <Link href="/terms" className="hover:text-[#a7b0c3]">Terms</Link>
         </div>
       </div>
     </div>

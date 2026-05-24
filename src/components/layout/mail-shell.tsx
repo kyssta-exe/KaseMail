@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { KaseLogo } from "@/components/ui/kase-logo"
 import { CommandSearch } from "@/components/ui/command-search"
@@ -108,9 +109,9 @@ export function MailShell({
             </div>
           </div>
           <div className="flex gap-4 px-3 text-xs text-[#717b91]">
-            <span>© 2024 Kase</span>
-            <span>Privacy</span>
-            <span>Terms</span>
+            <span>© 2026 Kase</span>
+            <Link href="/privacy" className="hover:text-[#a7b0c3]">Privacy</Link>
+            <Link href="/terms" className="hover:text-[#a7b0c3]">Terms</Link>
           </div>
         </div>
 
