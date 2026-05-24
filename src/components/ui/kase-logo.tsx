@@ -16,14 +16,17 @@ export function KaseLogo({ className, iconOnly = false, size = "md" }: KaseLogoP
     <div className={cn("flex items-center gap-2.5", className)}>
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl shadow-none",
+          "relative overflow-hidden rounded-xl",
           iconSize
         )}
+        style={{ filter: "var(--logo-filter)" }}
       >
         <Image src={kaseIcon} alt="KaseMail" fill sizes="40px" className="object-contain" priority={size === "lg"} />
       </div>
       {!iconOnly && (
-        <span className={cn("font-semibold tracking-tight text-[#f8fafc]", textSize)}>KaseMail</span>
+        <span className={cn("font-semibold tracking-tight", textSize)} style={{ color: "var(--foreground)" }}>
+          KaseMail
+        </span>
       )}
     </div>
   )

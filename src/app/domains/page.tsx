@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Link from "next/link"
 import {
   Globe,
   Plus,
@@ -38,9 +39,8 @@ import {
   Globe2,
   Info,
 } from "lucide-react"
-import { mockDomains } from "@/lib/mock-data"
 import { api } from "@/lib/api-service"
-import { Domain } from "@/lib/types"
+import type { Domain } from "@/lib/types"
 
 function mapDomain(domain: any): Domain {
   const latest = domain.dnsChecks?.[0]
@@ -49,7 +49,7 @@ function mapDomain(domain: any): Domain {
     id: domain.id,
     name: domain.name,
     status,
-    mailboxes: domain._count?.mailboxes ?? domain.mailboxes ?? 0,
+    mailboxes: domain._count?.mailboxes ?? 0,
     dnsStatus: latest?.status === "verified" ? "valid" : latest?.status === "failed" ? "invalid" : "warning",
     dkim: domain.dkimPublicKey ? "pass" : "fail",
     dmarc: "none",
@@ -57,25 +57,24 @@ function mapDomain(domain: any): Domain {
   }
 }
 
-const summaryCards = [
-  { label: "Total Domains", value: "128", trend: "up 12% vs last 7 days", tone: "success" },
-  { label: "Healthy Domains", value: "116", trend: "90% of total", tone: "success" },
-  { label: "Warning Domains", value: "8", trend: "6% of total", tone: "warning" },
-  { label: "Error Domains", value: "4", trend: "4% of total", tone: "danger" },
-] as const
-
 export default function DomainsPage() {
+  const [search, setSearch] = useState("")
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [domains, setDomains] = useState(mockDomains)
+  const [domains, setDomains] = useState<Domain[]>([])
   const [domainName, setDomainName] = useState("")
   const [quotaGb, setQuotaGb] = useState("10")
   const [catchAll, setCatchAll] = useState(false)
 
   useEffect(() => {
-    api.getDomains()
-      .then((items) => setDomains(items.map(mapDomain)))
-      .catch(() => setDomains(mockDomains))
+    api.getDomains().then((items) => setDomains(items.map(mapDomain)))
   }, [])
+
+  const filtered = domains.filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
+
+  const total = domains.length
+  const healthy = domains.filter((d) => d.status === "healthy").length
+  const warning = domains.filter((d) => d.status === "warning").length
+  const error = domains.filter((d) => d.status === "error").length
 
   async function handleAddDomain() {
     if (!domainName.trim()) {
@@ -110,22 +109,26 @@ export default function DomainsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card) => (
-          <GlassCard key={card.label} className="p-5">
-            <p className="text-sm text-[#a7b0c3]">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{card.value}</p>
-            <span
-              className={cn(
-                "mt-1 inline-block text-xs font-medium",
-                card.tone === "success" && "text-[#4ade80]",
-                card.tone === "warning" && "text-[#fbbf24]",
-                card.tone === "danger" && "text-[#f87171]",
-              )}
-            >
-              {card.trend}
-            </span>
-          </GlassCard>
-        ))}
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Total Domains</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{total}</p>
+          <span className="mt-1 inline-block text-xs font-medium text-[#4ade80]">live from database</span>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Active</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{healthy}</p>
+          <span className="mt-1 inline-block text-xs font-medium text-[#4ade80]">{total ? Math.round(healthy / total * 100) : 0}% of total</span>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">DNS Pending</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{warning}</p>
+          <span className="mt-1 inline-block text-xs font-medium text-[#fbbf24]">{total ? Math.round(warning / total * 100) : 0}% of total</span>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Errors</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{error}</p>
+          <span className="mt-1 inline-block text-xs font-medium text-[#f87171]">{total ? Math.round(error / total * 100) : 0}% of total</span>
+        </GlassCard>
       </div>
 
       <GlassCard className="overflow-hidden">
@@ -133,6 +136,8 @@ export default function DomainsPage() {
           <div className="relative min-w-[200px] max-w-sm flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a7b0c3]" />
             <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search domains..."
               className="h-9 rounded-xl border-white/10 bg-white/[0.04] pl-9 text-sm text-[#f8fafc] placeholder:text-[#a7b0c3]"
             />
@@ -186,7 +191,7 @@ export default function DomainsPage() {
               </tr>
             </thead>
             <tbody>
-              {domains.map((domain) => (
+              {filtered.map((domain) => (
                 <tr
                   key={domain.id}
                   className="border-b border-white/[0.04] transition-colors last:border-b-0 hover:bg-white/[0.02]"
@@ -195,12 +200,9 @@ export default function DomainsPage() {
                     <span className="font-medium text-[#f8fafc]">{domain.name}</span>
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      {domain.id === "1" && <StatusChip status="info">Primary</StatusChip>}
-                      <StatusChip status={statusToChip(domain.status)}>
-                        {domain.status.charAt(0).toUpperCase() + domain.status.slice(1)}
-                      </StatusChip>
-                    </div>
+                    <StatusChip status={statusToChip(domain.status)}>
+                      {domain.status.charAt(0).toUpperCase() + domain.status.slice(1)}
+                    </StatusChip>
                   </td>
                   <td className="px-5 py-4 text-[#c1c6d4]">
                     {domain.mailboxes.toLocaleString()}
@@ -227,12 +229,14 @@ export default function DomainsPage() {
                   </td>
                   <td className="px-5 py-4 text-[#c1c6d4]">{domain.createdDate}</td>
                   <td className="px-5 py-4">
-                    <Button
-                      variant="ghost"
-                      className="h-8 rounded-lg text-xs text-[#4f8cff] hover:bg-[rgba(79,140,255,0.1)] hover:text-[#4f8cff]"
-                    >
-                      Manage
-                    </Button>
+                    <Link href={`/dns?domainId=${domain.id}`}>
+                      <Button
+                        variant="ghost"
+                        className="h-8 rounded-lg text-xs text-[#4f8cff] hover:bg-[rgba(79,140,255,0.1)] hover:text-[#4f8cff]"
+                      >
+                        Setup DNS
+                      </Button>
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -241,7 +245,7 @@ export default function DomainsPage() {
         </div>
 
         <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-4">
-          <p className="text-sm text-[#a7b0c3]">Showing 1 to {domains.length} of {domains.length} domains</p>
+          <p className="text-sm text-[#a7b0c3]">Showing {filtered.length} of {total} domains</p>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

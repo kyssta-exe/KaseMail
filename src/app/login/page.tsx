@@ -52,9 +52,12 @@ export default function LoginPage() {
     event.preventDefault()
     setLoading(true)
     try {
-      await api.login(email, password)
+      const res = await api.login(email, password)
+      const role = res.user?.role
       toast.success("Signed in")
-      router.push("/dashboard")
+      if (role === "SUPERADMIN" || role === "WORKSPACE_ADMIN") router.push("/dashboard")
+      else if (role === "WORKSPACE_USER") router.push("/workspaces")
+      else router.push("/mail/inbox")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sign in failed")
     } finally {

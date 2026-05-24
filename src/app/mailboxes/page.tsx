@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { mockMailboxes, mockDomains } from "@/lib/mock-data"
 import type { Mailbox } from "@/lib/types"
 import { api } from "@/lib/api-service"
 import { AdminShell } from "@/components/layout/admin-shell"
@@ -49,13 +48,6 @@ import {
   AlertTriangle,
 } from "lucide-react"
 
-const metrics = [
-  { label: "Total Mailboxes", value: "2,845", icon: Mail, color: "text-[#4f8cff]" },
-  { label: "Active", value: "2,801", icon: Users, color: "text-[#4ade80]" },
-  { label: "Suspended", value: "44", icon: AlertTriangle, color: "text-[#f87171]" },
-  { label: "Storage Used", value: "1.42 TB", icon: HardDrive, color: "text-[#fbbf24]" },
-]
-
 const columns = [
   "Email Address",
   "Owner Name",
@@ -87,29 +79,29 @@ function mapMailbox(mailbox: any): Mailbox {
 export default function MailboxesPage() {
   const [search, setSearch] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
-  const [mailboxes, setMailboxes] = useState(mockMailboxes)
-  const [domains, setDomains] = useState(mockDomains.map((d) => ({ id: d.id, name: d.name })))
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([])
+  const [domains, setDomains] = useState<{ id: string; name: string }[]>([])
 
   const [formName, setFormName] = useState("")
   const [formEmail, setFormEmail] = useState("")
-  const [formDomain, setFormDomain] = useState(mockDomains[0].name)
+  const [formDomain, setFormDomain] = useState("")
   const [formPassword, setFormPassword] = useState("")
   const [formQuota, setFormQuota] = useState("10")
   const [formWebmail, setFormWebmail] = useState(true)
   const [formSmtpImap, setFormSmtpImap] = useState(true)
 
   useEffect(() => {
-    api.getMailboxes()
-      .then((items) => setMailboxes(items.map(mapMailbox)))
-      .catch(() => setMailboxes(mockMailboxes))
-    api.getDomains()
-      .then((items) => {
-        const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
-        setDomains(mapped)
-        if (mapped[0]) setFormDomain(mapped[0].name)
-      })
-      .catch(() => setDomains(mockDomains.map((d) => ({ id: d.id, name: d.name }))))
+    api.getMailboxes().then((items) => setMailboxes(items.map(mapMailbox)))
+    api.getDomains().then((items) => {
+      const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
+      setDomains(mapped)
+      if (mapped[0]) setFormDomain(mapped[0].name)
+    })
   }, [])
+
+  const total = mailboxes.length
+  const active = mailboxes.filter((m) => m.status === "active").length
+  const suspended = mailboxes.filter((m) => m.status === "suspended").length
 
   const filtered = mailboxes.filter((m) => {
     const q = search.toLowerCase()
@@ -284,22 +276,50 @@ export default function MailboxesPage() {
 
         {/* Metrics */}
         <div className="grid grid-cols-4 gap-4">
-          {metrics.map((m) => {
-            const Icon = m.icon
-            return (
-              <GlassCard key={m.label} className="p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04]">
-                    <Icon className={cn("h-5 w-5", m.color)} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#a7b0c3]">{m.label}</p>
-                    <p className="text-xl font-semibold text-[#f8fafc]">{m.value}</p>
-                  </div>
-                </div>
-              </GlassCard>
-            )
-          })}
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04]">
+                <Mail className="h-5 w-5 text-[#4f8cff]" />
+              </div>
+              <div>
+                <p className="text-xs text-[#a7b0c3]">Total Mailboxes</p>
+                <p className="text-xl font-semibold text-[#f8fafc]">{total}</p>
+              </div>
+            </div>
+          </GlassCard>
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04]">
+                <Users className="h-5 w-5 text-[#4ade80]" />
+              </div>
+              <div>
+                <p className="text-xs text-[#a7b0c3]">Active</p>
+                <p className="text-xl font-semibold text-[#f8fafc]">{active}</p>
+              </div>
+            </div>
+          </GlassCard>
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04]">
+                <AlertTriangle className="h-5 w-5 text-[#f87171]" />
+              </div>
+              <div>
+                <p className="text-xs text-[#a7b0c3]">Suspended</p>
+                <p className="text-xl font-semibold text-[#f8fafc]">{suspended}</p>
+              </div>
+            </div>
+          </GlassCard>
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04]">
+                <HardDrive className="h-5 w-5 text-[#fbbf24]" />
+              </div>
+              <div>
+                <p className="text-xs text-[#a7b0c3]">Storage Used</p>
+                <p className="text-xl font-semibold text-[#f8fafc]">-</p>
+              </div>
+            </div>
+          </GlassCard>
         </div>
 
         {/* Table */}

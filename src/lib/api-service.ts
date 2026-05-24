@@ -25,6 +25,8 @@ export const api = {
     apiFetch<any>("/api/domains", { method: "POST", body: JSON.stringify(data) }),
   checkDns: (id: string) =>
     apiFetch<any>(`/api/domains/${id}/check-dns`, { method: "POST" }),
+  getDnsRecords: async (id: string) =>
+    (await apiFetch<{ domainName: string; records: any[] }>(`/api/domains/${id}/dns-records`)).records,
   deleteDomain: (id: string) =>
     apiFetch<any>(`/api/domains/${id}`, { method: "DELETE" }),
 

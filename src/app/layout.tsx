@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "sonner"
 import { boot } from "@/lib/boot"
+import { ThemeInit } from "@/components/theme-init"
 
 boot()
 
@@ -29,18 +30,22 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <ThemeInit />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster
           position="bottom-right"
           toastOptions={{
             style: {
-              background: "rgba(15,23,48,0.92)",
-              border: "1px solid rgba(255,255,255,0.09)",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
               backdropFilter: "blur(18px)",
-              color: "#f8fafc",
+              color: "var(--foreground)",
               borderRadius: "16px",
             },
           }}

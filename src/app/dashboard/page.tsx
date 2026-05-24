@@ -7,7 +7,6 @@ import { MetricCard } from "@/components/ui/metric-card"
 import { StatusChip } from "@/components/ui/status-chip"
 import { AppButton } from "@/components/ui/app-button"
 import { cn } from "@/lib/utils"
-import { mockKPIs, mockActivities } from "@/lib/mock-data"
 import { api } from "@/lib/api-service"
 import {
   ShieldCheck,
@@ -50,8 +49,8 @@ const storageLegend = [
 ]
 
 export default function DashboardPage() {
-  const [kpis, setKpis] = useState(mockKPIs)
-  const [activities, setActivities] = useState(mockActivities)
+  const [kpis, setKpis] = useState<any[]>([])
+  const [activities, setActivities] = useState<any[]>([])
 
   useEffect(() => {
     Promise.allSettled([api.getDomains(), api.getMailboxes(), api.getServerHealth(), api.getAuditLogs({ take: 7 })]).then((results) => {

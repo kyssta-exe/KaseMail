@@ -33,7 +33,6 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react"
-import { mockAliases, mockDomains } from "@/lib/mock-data"
 import type { Alias } from "@/lib/types"
 import { api } from "@/lib/api-service"
 
@@ -46,34 +45,24 @@ function mapAlias(alias: any): Alias {
   }
 }
 
-const summaryCards = [
-  { label: "Total Aliases", value: "12" },
-  { label: "Active", value: "8" },
-  { label: "Disabled", value: "4" },
-] as const
-
 export default function AliasesPage() {
-  const [aliases, setAliases] = useState<Alias[]>(mockAliases)
-  const [domains, setDomains] = useState(mockDomains.map((d) => ({ id: d.id, name: d.name })))
+  const [aliases, setAliases] = useState<Alias[]>([])
+  const [domains, setDomains] = useState<{ id: string; name: string }[]>([])
   const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [aliasName, setAliasName] = useState("")
-  const [aliasDomain, setAliasDomain] = useState(mockDomains[0]?.name ?? "")
+  const [aliasDomain, setAliasDomain] = useState("")
   const [forwardTo, setForwardTo] = useState("")
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ type: "delete" | "disable"; id: string } | null>(null)
 
   useEffect(() => {
-    api.getAliases()
-      .then((items) => setAliases(items.map(mapAlias)))
-      .catch(() => setAliases(mockAliases))
-    api.getDomains()
-      .then((items) => {
-        const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
-        setDomains(mapped)
-        if (mapped[0]) setAliasDomain(mapped[0].name)
-      })
-      .catch(() => setDomains(mockDomains.map((d) => ({ id: d.id, name: d.name }))))
+    api.getAliases().then((items) => setAliases(items.map(mapAlias)))
+    api.getDomains().then((items) => {
+      const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
+      setDomains(mapped)
+      if (mapped[0]) setAliasDomain(mapped[0].name)
+    })
   }, [])
 
   const filtered = aliases.filter((a) =>
@@ -228,14 +217,18 @@ export default function AliasesPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {summaryCards.map((card) => (
-          <GlassCard key={card.label} className="p-5">
-            <p className="text-sm text-[#a7b0c3]">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">
-              {card.label === "Total Aliases" ? total : card.label === "Active" ? active : disabled}
-            </p>
-          </GlassCard>
-        ))}
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Total Aliases</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{total}</p>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Active</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{active}</p>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <p className="text-sm text-[#a7b0c3]">Disabled</p>
+          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{disabled}</p>
+        </GlassCard>
       </div>
 
       <GlassCard className="overflow-hidden">

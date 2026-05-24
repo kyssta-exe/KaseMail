@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { KaseLogo } from "@/components/ui/kase-logo"
@@ -15,12 +15,13 @@ import {
   Trash2,
   Settings,
   Search,
-  Bell,
-  Shield,
-  ChevronDown,
   Edit3,
+  ChevronDown,
   Menu,
+  LayoutDashboard,
 } from "lucide-react"
+
+type Role = "SUPERADMIN" | "WORKSPACE_ADMIN" | "WORKSPACE_USER" | "INDIVIDUAL_USER"
 
 const folders = [
   { label: "Inbox", icon: Inbox, badge: "12", href: "/mail/inbox" },
@@ -32,6 +33,8 @@ const folders = [
   { label: "Trash", icon: Trash2, href: "/mail/trash" },
   { label: "Settings", icon: Settings, href: "/mail/settings" },
 ]
+
+const adminRoles: Role[] = ["SUPERADMIN", "WORKSPACE_ADMIN"]
 
 export function MailShell({
   children,
@@ -45,18 +48,37 @@ export function MailShell({
   const [commandOpen, setCommandOpen] = useState(false)
   const [activeFolder, setActiveFolder] = useState("Inbox")
   const [mobileView, setMobileView] = useState<"list" | "detail">("list")
+  const [role, setRole] = useState<Role | null>(null)
+  const [user, setUser] = useState<{ email: string; displayName: string } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user?.role) setRole(data.user.role)
+        if (data.user) setUser(data.user)
+      })
+      .catch(() => {})
+  }, [])
+
+  const isAdmin = role && adminRoles.includes(role)
 
   return (
-    <div className="flex h-screen overflow-hidden kase-bg">
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)" }}>
       <CommandSearch open={commandOpen} onOpenChange={setCommandOpen} mailMode />
 
-      <aside className="hidden lg:flex w-[268px] flex-shrink-0 flex-col border-r border-white/[0.06] bg-[rgba(10,16,34,0.84)] backdrop-blur-2xl">
+      <aside
+        className="hidden lg:flex w-[268px] flex-shrink-0 flex-col border-r backdrop-blur-2xl"
+        style={{ borderColor: "var(--sidebar-border)", background: "color-mix(in srgb, var(--sidebar) 84%, transparent)" }}
+      >
         <div className="p-4 pb-3">
           <KaseLogo />
         </div>
 
         <div className="px-3 mb-4">
-          <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-200 px-4 py-3 text-sm font-medium text-slate-950 transition-all hover:bg-slate-300">
+          <button className="flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition-all"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+          >
             <Edit3 className="h-4 w-4" />
             Compose
           </button>
@@ -89,26 +111,34 @@ export function MailShell({
           })}
         </nav>
 
-        <div className="border-t border-white/[0.06] p-4 space-y-3">
+        <div className="px-4 py-3">
+          {isAdmin && (
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#a7b0c3] hover:text-[#f8fafc] hover:bg-white/[0.04] transition-all"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Admin Panel
+            </Link>
+          )}
+        </div>
+
+        <div className="border-t px-4 py-4 space-y-3" style={{ borderColor: "var(--sidebar-border)" }}>
           <div className="flex items-center gap-3 rounded-xl px-3 py-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-slate-500 to-slate-400 text-xs font-bold text-white">
-              D
+              {(user?.displayName || user?.email || "U")[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#f8fafc] truncate">Daniel Carter</p>
-              <p className="text-xs text-[#a7b0c3] truncate">daniel@kase.com</p>
+              <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                {user?.displayName || "User"}
+              </p>
+              <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+                {user?.email || ""}
+              </p>
             </div>
             <ChevronDown className="h-4 w-4 text-[#a7b0c3]" />
           </div>
-          <div className="px-3">
-            <div className="flex items-center justify-between text-xs text-[#a7b0c3] mb-1.5">
-              <span>2.43 GB of 10 GB used</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
-              <div className="h-full w-[24%] rounded-full bg-gradient-to-r from-slate-500 to-slate-400" />
-            </div>
-          </div>
-          <div className="flex gap-4 px-3 text-xs text-[#717b91]">
+          <div className="flex gap-4 px-3 text-xs" style={{ color: "var(--muted-foreground)" }}>
             <span>© 2026 Kase</span>
             <Link href="/privacy" className="hover:text-[#a7b0c3]">Privacy</Link>
             <Link href="/terms" className="hover:text-[#a7b0c3]">Terms</Link>
@@ -126,52 +156,60 @@ export function MailShell({
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0">
-        <header className="flex h-14 items-center gap-4 border-b border-white/[0.06] px-4 bg-[rgba(5,8,22,0.6)] backdrop-blur-xl">
-          <button className="lg:hidden text-[#a7b0c3]" onClick={() => setMobileView("list")}>
+        <header
+          className="flex h-14 items-center gap-4 px-4 backdrop-blur-xl"
+          style={{ borderBottom: "1px solid var(--border)", background: "color-mix(in srgb, var(--sidebar) 60%, transparent)" }}
+        >
+          <button
+            className="lg:hidden"
+            style={{ color: "var(--muted-foreground)" }}
+            onClick={() => setMobileView("list")}
+          >
             <Menu className="h-5 w-5" />
           </button>
 
           <button
             onClick={() => setCommandOpen(true)}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-[#a7b0c3] hover:border-white/20 transition-colors w-full max-w-md"
+            className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm transition-colors w-full max-w-md"
+            style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--sidebar) 40%, transparent)", color: "var(--muted-foreground)" }}
           >
             <Search className="h-4 w-4" />
             <span>Search emails</span>
-            <kbd className="ml-auto hidden md:inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-xs text-[#717b91]">
-              <span>⌘</span>K
-            </kbd>
           </button>
 
-          <div className="ml-auto flex items-center gap-2">
-            <button className="flex h-8 w-8 items-center justify-center rounded-xl text-[#a7b0c3] hover:text-[#f8fafc] hover:bg-white/[0.06] transition-colors">
-              <Shield className="h-4 w-4" />
+          {messageList && !readingPane && (
+            <button className="lg:hidden ml-auto" style={{ color: "var(--muted-foreground)" }} onClick={() => {}}>
+              <Edit3 className="h-5 w-5" />
             </button>
-            <button className="flex h-8 w-8 items-center justify-center rounded-xl text-[#a7b0c3] hover:text-[#f8fafc] hover:bg-white/[0.06] transition-colors relative">
-              <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ef4444] text-[9px] font-bold text-white">
-                3
-              </span>
-            </button>
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-500 to-slate-400 text-[10px] font-bold text-white ml-1">
-              D
-            </div>
-          </div>
+          )}
         </header>
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className={cn(
-            "w-full lg:w-[520px] flex-shrink-0 border-r border-white/[0.06] overflow-y-auto",
-            "hidden lg:block",
-            mobileView === "list" ? "block" : "hidden"
-          )}>
-            {messageList}
-          </div>
-          <div className={cn(
-            "flex-1 overflow-y-auto",
-            mobileView === "detail" ? "block" : "hidden lg:block"
-          )}>
-            {readingPane}
-          </div>
+        <div className="flex flex-1 min-h-0">
+          {messageList && (
+            <div
+              className={cn(
+                "w-full lg:w-[360px] xl:w-[400px] flex-shrink-0 overflow-y-auto border-r",
+                readingPane && mobileView === "detail" && "hidden lg:block"
+              )}
+              style={{ borderColor: "var(--border)" }}
+            >
+              {messageList}
+            </div>
+          )}
+
+          {readingPane && (
+            <div
+              className={cn(
+                "flex-1 overflow-y-auto",
+                !readingPane && "hidden",
+                messageList && mobileView === "list" && "hidden lg:block"
+              )}
+            >
+              {readingPane}
+            </div>
+          )}
+
+          {children}
         </div>
       </div>
     </div>

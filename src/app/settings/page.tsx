@@ -145,7 +145,13 @@ export default function SettingsPage() {
     }
   }
 
+  function applyTheme(t: "dark" | "light") {
+    document.documentElement.classList.toggle("dark", t === "dark")
+    localStorage.setItem("kasemail-theme", t)
+  }
+
   async function handleSaveAppearance() {
+    applyTheme(theme)
     try {
       await api.updateAppearance({ theme, compact, fontSize })
       toast.success("Appearance saved")
