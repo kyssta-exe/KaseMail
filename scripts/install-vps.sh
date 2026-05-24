@@ -265,7 +265,7 @@ for i in {1..30}; do
 done
 
 log "Pushing database schema"
-docker compose --env-file .env.production exec -T app npx prisma db push --accept-data-loss
+docker compose --env-file .env.production exec -T app ./node_modules/.bin/prisma db push --accept-data-loss
 ok "Schema applied"
 
 log "Seeding superadmin and default workspace"

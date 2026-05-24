@@ -65,7 +65,7 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull app 2>&1 |
 
 log "Running database migrations..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres 2>/dev/null
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm app sh -c "npx prisma db push --accept-data-loss" 2>&1 || warn "Migration had issues (schema may not match)"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm app sh -c "./node_modules/.bin/prisma db push --accept-data-loss" 2>&1 || warn "Migration had issues (schema may not match)"
 
 log "Restarting services..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate app stalwart 2>&1 || { err "Service restart failed"; exit 1; }
