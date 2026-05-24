@@ -70,8 +70,10 @@ fi
 
 ok "All system dependencies installed"
 
-log "Pulling Stalwart mail server image"
-docker pull stalwartlabs/mail-server:latest 2>/dev/null || warn "Stalwart pull failed, will pull on compose up"
+if [[ "${MAIL_CORE}" == "stalwart" ]]; then
+  log "Pulling Stalwart mail server image"
+  docker pull stalwartlabs/stalwart:latest 2>/dev/null || warn "Stalwart pull failed, will pull on compose up"
+fi
 echo ""
 
 # ---- Phase 2: Gather Configuration ----
@@ -204,7 +206,7 @@ STALWART_ADMIN_USER=admin
 # App URLs
 NEXT_PUBLIC_APP_URL=https://${PANEL_DOMAIN}
 NEXT_PUBLIC_WEBMAIL_URL=https://${WEBMAIL_DOMAIN}
-NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=
+NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=placeholder
 NEXT_PUBLIC_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.1.0")
 
 # Encryption

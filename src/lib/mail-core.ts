@@ -24,115 +24,118 @@ export type MailCoreAdapter = {
 
 class StalwartClient implements MailCoreAdapter {
   private baseUrl: string
-  private token: string | null = null
-  private tokenExpiry = 0
+  private basicAuth: string
 
   constructor() {
     this.baseUrl = config.stalwart.apiUrl.replace(/\/$/, "")
+    this.basicAuth = "Basic " + Buffer.from(`${config.stalwart.adminUser || "admin"}:${config.stalwart.apiKey}`).toString("base64")
   }
 
-  private async authHeaders(): Promise<Record<string, string>> {
-    if (this.token && Date.now() < this.tokenExpiry) {
-      return { Authorization: `Bearer ${this.token}` }
-    }
-    const res = await fetch(`${this.baseUrl}/api/authenticate`, {
+  private async jmapCall(requests: { method: string; params: any }[]): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/jmap`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: this.basicAuth },
       body: JSON.stringify({
-        username: config.stalwart.adminUser || "admin",
-        secret: config.stalwart.apiKey,
+        using: ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"],
+        methodCalls: requests.map((r) => [r.method, { accountId: "srv", ...r.params }, "0"]),
       }),
-    })
-    if (!res.ok) throw new Error(`Stalwart auth failed: ${res.status}`)
-    const data = await res.json()
-    this.token = data.token
-    this.tokenExpiry = Date.now() + 300000
-    return { Authorization: `Bearer ${this.token}` }
-  }
-
-  private async request<T>(method: string, path: string, body?: any): Promise<T> {
-    const headers = await this.authHeaders()
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", ...headers },
-      body: body ? JSON.stringify(body) : undefined,
     })
     if (!res.ok) {
       const text = await res.text().catch(() => "")
-      throw new Error(`Stalwart API ${res.status}: ${text.slice(0, 300)}`)
+      throw new Error(`Stalwart JMAP ${res.status}: ${text.slice(0, 300)}`)
     }
-    if (res.status === 204 || res.headers.get("content-length") === "0") return undefined as T
-    return res.json()
+    const data = await res.json()
+    const err = data.methodResponses?.find((r: any) => r[0] === "error")
+    if (err) throw new Error(`Stalwart error: ${JSON.stringify(err[1])}`)
+    return data.methodResponses || []
   }
 
   async createMailbox(input: CreateMailboxInput): Promise<{ id: string }> {
-    const account = await this.request<any>("POST", "/api/account", {
-      name: `${input.localPart}@${input.domain}`,
-      description: input.name,
-      secrets: { password: input.password },
-      quota: { limit: input.quotaMb * 1024 * 1024 },
-    })
-    return { id: account.name || `${input.localPart}@${input.domain}` }
+    const email = `${input.localPart}@${input.domain}`
+    const res = await this.jmapCall([
+      {
+        method: "x:Principal/set",
+        params: {
+          create: {
+            "new": { "@type": "Individual", name: email, description: input.name, emails: [email], secrets: [input.password], roles: ["user"], quota: input.quotaMb * 1048576 },
+          },
+        },
+      },
+    ])
+    const created = res[0]?.[1]?.created?.["new"]
+    return { id: created?.id || email }
   }
 
   async deleteMailbox(id: string): Promise<void> {
-    await this.request("DELETE", `/api/account/${encodeURIComponent(id)}`)
+    const email = id.includes("@") ? id : `${id}@unknown`
+    await this.jmapCall([{ method: "x:Principal/set", params: { destroy: [email] } }])
   }
 
   async suspendMailbox(id: string): Promise<void> {
-    await this.request("PATCH", `/api/account/${encodeURIComponent(id)}`, { active: false })
+    const email = id.includes("@") ? id : `${id}@unknown`
+    await this.jmapCall([{ method: "x:Principal/set", params: { update: { [email]: { "@type": "Individual", active: false } } } }])
   }
 
   async unsuspendMailbox(id: string): Promise<void> {
-    await this.request("PATCH", `/api/account/${encodeURIComponent(id)}`, { active: true })
+    const email = id.includes("@") ? id : `${id}@unknown`
+    await this.jmapCall([{ method: "x:Principal/set", params: { update: { [email]: { "@type": "Individual", active: true } } } }])
   }
 
   async listMailboxes(domain?: string): Promise<any[]> {
-    const accounts = await this.request<any[]>("GET", "/api/account")
-    if (domain) return accounts.filter((a: any) => a.name?.endsWith(`@${domain}`))
-    return accounts
+    const filter: any = { "@type": "Individual" }
+    if (domain) filter.emails = domain
+    const res = await this.jmapCall([{ method: "x:Principal/query", params: { filter, limit: 500 } }])
+    const ids = res[0]?.[1]?.ids || []
+    if (ids.length === 0) return []
+    const getRes = await this.jmapCall([{ method: "x:Principal/get", params: { ids } }])
+    return getRes[0]?.[1]?.list || []
   }
 
   async createAlias(address: string, targets: string[]): Promise<{ id: string }> {
-    const group = await this.request<any>("POST", "/api/group", {
-      name: address,
-      members: targets,
-      description: `Alias for ${targets.join(", ")}`,
-    })
-    return { id: group.name || address }
+    const res = await this.jmapCall([
+      {
+        method: "x:Principal/set",
+        params: {
+          create: { "new": { "@type": "Group", name: address, emails: [address], members: targets, description: `Alias for ${targets.join(", ")}` } },
+        },
+      },
+    ])
+    const created = res[0]?.[1]?.created?.["new"]
+    return { id: created?.id || address }
   }
 
   async deleteAlias(id: string): Promise<void> {
-    await this.request("DELETE", `/api/group/${encodeURIComponent(id)}`)
+    await this.jmapCall([{ method: "x:Principal/set", params: { destroy: [id] } }])
   }
 
   async getDkim(domain: string): Promise<{ selector: string; privateKey: string; publicKey: string } | null> {
     try {
-      const dkim = await this.request<any>("GET", `/api/dkim/${encodeURIComponent(domain)}`)
+      const res = await this.jmapCall([{ method: "x:Dkim/query", params: { filter: { domain } } }])
+      const ids = res[0]?.[1]?.ids || []
+      if (ids.length === 0) return null
+      const getRes = await this.jmapCall([{ method: "x:Dkim/get", params: { ids } }])
+      const dkim = getRes[0]?.[1]?.list?.[0]
       if (!dkim) return null
-      return {
-        selector: dkim.selector || "default",
-        privateKey: dkim.private_key || dkim.privateKey || "",
-        publicKey: dkim.public_key || dkim.publicKey || "",
-      }
-    } catch {
-      return null
-    }
+      return { selector: dkim.selector || "default", privateKey: dkim.privateKey || "", publicKey: dkim.publicKey || "" }
+    } catch { return null }
   }
 
   async createDomain(domain: string): Promise<void> {
-    await this.request("POST", "/api/domain", { name: domain })
+    await this.jmapCall([{ method: "x:Principal/set", params: { create: { "new": { "@type": "Domain", name: domain } } } }])
   }
 
   async deleteDomain(domain: string): Promise<void> {
-    await this.request("DELETE", `/api/domain/${encodeURIComponent(domain)}`)
+    await this.jmapCall([{ method: "x:Principal/set", params: { destroy: [domain] } }])
   }
 
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) })
-      if (res.ok) return { ok: true, message: "Stalwart mail server reachable" }
-      return { ok: false, message: `Stalwart returned HTTP ${res.status}` }
+      const res = await fetch(`${this.baseUrl}/api/account`, {
+        headers: { Authorization: this.basicAuth },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (res.ok) return { ok: true, message: "Stalwart reachable" }
+      return { ok: false, message: `Stalwart HTTP ${res.status}` }
     } catch (e: any) {
       return { ok: false, message: e.message || "Stalwart connection failed" }
     }

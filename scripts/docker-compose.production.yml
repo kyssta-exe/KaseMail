@@ -23,13 +23,14 @@ services:
       - kasemail
 
   stalwart:
-    image: stalwartlabs/mail-server:latest
+    image: stalwartlabs/stalwart:latest
     environment:
-      STALWART_AUTH_TOKEN: ${STALWART_API_KEY}
-      STALWART_DOMAIN: ${MAIL_DOMAIN}
-      STALWART_ADMIN_EMAIL: admin@${MAIL_DOMAIN}
+      STALWART_HOSTNAME: ${MAIL_DOMAIN}
+      STALWART_PUBLIC_URL: https://${MAIL_DOMAIN}
+      STALWART_RECOVERY_ADMIN: admin:${STALWART_API_KEY}
     volumes:
-      - stalwart_data:/opt/stalwart-mail
+      - stalwart_etc:/etc/stalwart
+      - stalwart_data:/var/lib/stalwart
     ports:
       - "25:25"
       - "465:465"
@@ -71,6 +72,7 @@ services:
 
 volumes:
   postgres_data:
+  stalwart_etc:
   stalwart_data:
 
 networks:
