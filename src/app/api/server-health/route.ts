@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
 import { getMailCore } from "@/lib/mail-core"
-import { execSync } from "child_process"
+import os from "os"
 
 function getUptime(): string {
   const sec = process.uptime()
@@ -16,7 +16,6 @@ function getUptime(): string {
 
 function getCpuUsage(): { usage: string; percentage: number } {
   try {
-    const os = require("os") as typeof import("os")
     const cpus = os.cpus()
     const totalIdle = cpus.reduce((a, c) => a + c.times.idle, 0)
     const totalTick = cpus.reduce((a, c) => a + Object.values(c.times).reduce((s, v) => s + v, 0), 0)
@@ -29,7 +28,6 @@ function getCpuUsage(): { usage: string; percentage: number } {
 
 function getDiskUsage(): { percentage: number; used: string; total: string } {
   try {
-    const os = require("os") as typeof import("os")
     const total = os.totalmem()
     const free = os.freemem()
     const used = total - free
@@ -64,7 +62,7 @@ export const GET = apiHandler(async () => {
       { name: "Webmail", status: mailCoreHealth.ok ? "healthy" : "unknown" },
     ],
     cpu: { usage: cpu.usage, percentage: cpu.percentage },
-    memory: { used: `${(memory.rss / 1073741824).toFixed(1)} GB`, total: `${(require("os").totalmem() / 1073741824).toFixed(1)} GB`, percentage: Math.round((memory.rss / require("os").totalmem()) * 100) },
+    memory: { used: `${(memory.rss / 1073741824).toFixed(1)} GB`, total: `${(os.totalmem() / 1073741824).toFixed(1)} GB`, percentage: Math.round((memory.rss / os.totalmem()) * 100) },
     disk,
     uptime: getUptime(),
     node: process.version,

@@ -9,4 +9,4 @@ export const POST = apiHandler(async () => {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message || "Update failed", output: e.stdout?.toString() || "" }, { status: 500 })
   }
-}, { rateLimit: { key: "update-apply:{userId}", max: 1, windowMs: 300000 } })
+}, { roles: ["SUPERADMIN"], rateLimit: { key: "update-apply:{userId}", max: 1, windowMs: 300000 } })

@@ -1,23 +1,33 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
-import { domainHealth } from "@/lib/dns"
+import { checkTxtContains, domainHealth } from "@/lib/dns"
+import { checkDomainOwnership } from "@/lib/rbac"
+import { AppError } from "@/lib/errors"
+import { getMailCore } from "@/lib/mail-core"
 
-export const POST = apiHandler(async (_req, { params }) => {
+export const POST = apiHandler(async (_req, { user, params }) => {
+  await checkDomainOwnership(user.id, params.id)
   const domain = await prisma.domain.findUnique({ where: { id: params.id } })
   if (!domain) return NextResponse.json({ error: "Domain not found" }, { status: 404 })
 
-  const mailHost = process.env.MAIL_HOST || `mail.${domain.name}`
-  const ip = process.env.MAIL_IP || "0.0.0.0"
+  const mailHost = process.env.MAIL_HOST?.trim()
+  if (!mailHost) throw new AppError("MAIL_HOST is required before DNS can be verified", 500)
+  const ip = process.env.MAIL_IP?.trim()
 
-  const health = await domainHealth(domain.name, mailHost, ip)
-
-  const checks = [
-    { type: "A", host: mailHost, expected: ip, status: health.a },
-    { type: "MX", host: domain.name, expected: mailHost, status: health.mx },
-    { type: "SPF", host: domain.name, expected: "v=spf1", status: health.spf },
-    { type: "DMARC", host: `_dmarc.${domain.name}`, expected: "v=DMARC1", status: health.dmarc },
-  ]
+  const checks = await domainHealth(domain.name, mailHost, ip)
+  const dkim = await getMailCore().getDkim(domain.name).catch(() => null)
+  if (dkim?.publicKey) {
+    const host = `${dkim.selector || "k1"}._domainkey.${domain.name}`
+    const result = await checkTxtContains(host, dkim.publicKey)
+    checks.push({
+      type: "DKIM",
+      host,
+      expected: dkim.publicKey,
+      actual: result.actual,
+      status: result.status,
+    })
+  }
 
   await prisma.dnsCheck.createMany({
     data: checks.map((c) => ({
@@ -25,13 +35,12 @@ export const POST = apiHandler(async (_req, { params }) => {
       type: c.type,
       host: c.host,
       expected: c.expected,
-      actual: c.status === "verified" ? c.expected : null,
+      actual: c.actual,
       status: c.status,
     })),
   })
 
   const allPassed = checks.every((c) => c.status === "verified")
-  const anyFailed = checks.some((c) => c.status === "failed")
   const newStatus = allPassed ? "ACTIVE" : "DNS_PENDING"
 
   await prisma.domain.update({
@@ -39,5 +48,5 @@ export const POST = apiHandler(async (_req, { params }) => {
     data: { status: newStatus as any },
   })
 
-  return NextResponse.json({ health, checks })
+  return NextResponse.json({ checks })
 }, { rateLimit: { key: "dns-check:{userId}", max: 10, windowMs: 60000 } })

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
+import { config } from "@/lib/config"
+import { sendMail } from "@/lib/mailer"
 import { z } from "zod"
 
 const schema = z.object({ email: z.string().email() })
@@ -13,7 +15,18 @@ export const POST = apiHandler(async (req) => {
     await prisma.passwordResetToken.create({
       data: { email, token, expiresAt: new Date(Date.now() + 3600000) },
     })
-    console.log(`Password reset token for ${email}: ${token}`)
+    const resetUrl = `${config.appUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`
+    await sendMail({
+      to: email,
+      subject: "Reset your KaseMail password",
+      text: [
+        "A password reset was requested for your KaseMail account.",
+        "",
+        `Reset your password: ${resetUrl}`,
+        "",
+        "This link expires in 1 hour. Ignore this email if you did not request it.",
+      ].join("\n"),
+    })
   }
   return NextResponse.json({ success: true })
 }, { auth: false, csrf: false, rateLimit: { key: "forgot-pw:{ip}", max: 3, windowMs: 60000 } })

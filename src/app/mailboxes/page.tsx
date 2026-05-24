@@ -11,7 +11,6 @@ import { StatusChip, statusToChip } from "@/components/ui/status-chip"
 import { AppButton } from "@/components/ui/app-button"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -76,24 +75,32 @@ function mapMailbox(mailbox: any): Mailbox {
   }
 }
 
+type WorkspaceOption = { id: string; name: string }
+type DomainOption = { id: string; name: string; workspaceId: string }
+
 export default function MailboxesPage() {
   const [search, setSearch] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([])
-  const [domains, setDomains] = useState<{ id: string; name: string }[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
+  const [domains, setDomains] = useState<DomainOption[]>([])
 
   const [formName, setFormName] = useState("")
+  const [formWorkspace, setFormWorkspace] = useState("")
   const [formEmail, setFormEmail] = useState("")
   const [formDomain, setFormDomain] = useState("")
   const [formPassword, setFormPassword] = useState("")
   const [formQuota, setFormQuota] = useState("10")
-  const [formWebmail, setFormWebmail] = useState(true)
-  const [formSmtpImap, setFormSmtpImap] = useState(true)
 
   useEffect(() => {
     api.getMailboxes().then((items) => setMailboxes(items.map(mapMailbox)))
+    api.getWorkspaces().then((items) => {
+      const mapped = items.map((w: WorkspaceOption) => ({ id: w.id, name: w.name }))
+      setWorkspaces(mapped)
+      if (mapped[0]) setFormWorkspace(mapped[0].id)
+    })
     api.getDomains().then((items) => {
-      const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
+      const mapped = items.map((d: any) => ({ id: d.id, name: d.name, workspaceId: d.workspaceId }))
       setDomains(mapped)
       if (mapped[0]) setFormDomain(mapped[0].name)
     })
@@ -114,11 +121,10 @@ export default function MailboxesPage() {
 
   async function handleCreate() {
     try {
-      const domain = domains.find((d) => d.name === formDomain)
-      const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID || ""
-      if (!workspaceId || !domain?.id) throw new Error("Default workspace/domain is not configured")
+      const domain = domains.find((d) => d.name === formDomain && d.workspaceId === formWorkspace)
+      if (!formWorkspace || !domain?.id) throw new Error("Select a workspace and domain")
       await api.createMailbox({
-        workspaceId,
+        workspaceId: formWorkspace,
         domainId: domain.id,
         localPart: formEmail,
         name: formName,
@@ -132,8 +138,6 @@ export default function MailboxesPage() {
       setFormEmail("")
       setFormPassword("")
       setFormQuota("10")
-      setFormWebmail(true)
-      setFormSmtpImap(true)
       toast.success(`Mailbox ${formEmail}@${formDomain} created successfully`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Mailbox creation failed")
@@ -199,6 +203,22 @@ export default function MailboxesPage() {
 
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-[#a7b0c3]">Workspace</label>
+                  <Select value={formWorkspace} onValueChange={(v) => v && setFormWorkspace(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workspaces.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-[#a7b0c3]">Full Name</label>
                   <Input
                     placeholder="e.g. John Doe"
@@ -222,7 +242,7 @@ export default function MailboxesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {domains.map((d) => (
+                        {domains.filter((d) => !formWorkspace || d.workspaceId === formWorkspace).map((d) => (
                           <SelectItem key={d.id} value={d.name}>
                             {d.name}
                           </SelectItem>
@@ -251,16 +271,6 @@ export default function MailboxesPage() {
                     value={formQuota}
                     onChange={(e) => setFormQuota(e.target.value)}
                   />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#f8fafc]">Webmail Access</span>
-                  <Switch checked={formWebmail} onCheckedChange={setFormWebmail} />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#f8fafc]">SMTP / IMAP</span>
-                  <Switch checked={formSmtpImap} onCheckedChange={setFormSmtpImap} />
                 </div>
               </div>
 

@@ -19,7 +19,13 @@ export const POST = apiHandler(async (req) => {
   const token = await createSession(user.id)
   await setCsrfCookie()
   const cookieStore = await cookies()
-  cookieStore.set("session", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/" })
+  cookieStore.set("session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  })
 
   return NextResponse.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role } })
 }, { auth: false, csrf: false, rateLimit: { key: "login:{ip}", max: 5, windowMs: 60000 } })

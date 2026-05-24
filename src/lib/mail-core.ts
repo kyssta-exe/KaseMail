@@ -11,6 +11,7 @@ export type CreateMailboxInput = {
 export type MailCoreAdapter = {
   createMailbox(input: CreateMailboxInput): Promise<{ id: string }>
   deleteMailbox(id: string): Promise<void>
+  resetMailboxPassword(id: string, password: string): Promise<void>
   suspendMailbox(id: string): Promise<void>
   unsuspendMailbox(id: string): Promise<void>
   listMailboxes(domain?: string): Promise<any[]>
@@ -69,6 +70,11 @@ class StalwartClient implements MailCoreAdapter {
   async deleteMailbox(id: string): Promise<void> {
     const email = id.includes("@") ? id : `${id}@unknown`
     await this.jmapCall([{ method: "x:Principal/set", params: { destroy: [email] } }])
+  }
+
+  async resetMailboxPassword(id: string, password: string): Promise<void> {
+    const email = id.includes("@") ? id : `${id}@unknown`
+    await this.jmapCall([{ method: "x:Principal/set", params: { update: { [email]: { secrets: [password] } } } }])
   }
 
   async suspendMailbox(id: string): Promise<void> {
@@ -186,6 +192,13 @@ class MailcowClient implements MailCoreAdapter {
 
   async deleteMailbox(id: string) {
     await this.request("/api/v1/delete/mailbox", { method: "POST", body: JSON.stringify({ items: [id] }) })
+  }
+
+  async resetMailboxPassword(id: string, password: string) {
+    await this.request("/api/v1/edit/mailbox", {
+      method: "POST",
+      body: JSON.stringify({ items: [id], attr: { password, password2: password, force_pw_update: "0" } }),
+    })
   }
 
   async suspendMailbox(id: string) {

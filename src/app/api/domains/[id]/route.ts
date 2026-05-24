@@ -2,12 +2,12 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
 import { checkDomainOwnership } from "@/lib/rbac"
+import { ForbiddenError } from "@/lib/errors"
 import { logAudit } from "@/lib/audit"
 import { getMailCore } from "@/lib/mail-core"
 import { z } from "zod"
 
 const updateSchema = z.object({
-  name: z.string().optional(),
   status: z.enum(["CREATED", "AWAITING_OWNERSHIP", "DNS_PENDING", "ACTIVE", "SUSPENDED", "ARCHIVED"]).optional(),
   catchAllMailboxId: z.string().nullable().optional(),
 })
@@ -22,6 +22,13 @@ export const GET = apiHandler(async (_req, { user, params }) => {
 export const PATCH = apiHandler(async (req, { user, params }) => {
   await checkDomainOwnership(user.id, params.id)
   const body = updateSchema.parse(await req.json())
+  if (body.catchAllMailboxId) {
+    const mailbox = await prisma.mailbox.findUnique({
+      where: { id: body.catchAllMailboxId },
+      select: { domainId: true },
+    })
+    if (!mailbox || mailbox.domainId !== params.id) throw new ForbiddenError()
+  }
   const domain = await prisma.domain.update({ where: { id: params.id }, data: body })
   await logAudit({
     actorUserId: user.id,

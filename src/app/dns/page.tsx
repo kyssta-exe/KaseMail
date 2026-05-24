@@ -24,6 +24,7 @@ type CheckResult = {
   status: "verified" | "pending" | "failed"
   host: string
   expected: string
+  actual?: string | null
 }
 
 function RecordField({ label, value }: { label: string; value: string }) {
@@ -93,6 +94,12 @@ export default function DNSSetupPage() {
       toast.error(e instanceof Error ? e.message : "Verification failed")
     }
     setVerifying(false)
+  }
+
+  function checkForRecord(record: DnsRecord) {
+    if (record.type === "TXT" && record.host === "_dmarc") return checks.find((check) => check.type === "DMARC")
+    if (record.type === "TXT" && record.host.includes("_domainkey")) return checks.find((check) => check.type === "DKIM")
+    return checks.find((check) => check.type === record.type)
   }
 
   if (!domainId) {
@@ -171,9 +178,9 @@ export default function DNSSetupPage() {
                     {rec.type} Record
                     {i === 0 && <span className="ml-2 inline-flex items-center rounded-full border border-[#4f8cff]/20 bg-[#4f8cff]/10 px-2 py-0.5 text-[11px] font-medium text-[#4f8cff]">Required</span>}
                   </h3>
-                  {checks[i] && (
-                    <StatusChip status={statusToChip(checks[i].status)}>
-                      {checks[i].status === "verified" ? "Verified" : checks[i].status === "failed" ? "Error" : "Pending"}
+                  {checkForRecord(rec) && (
+                    <StatusChip status={statusToChip(checkForRecord(rec)!.status)}>
+                      {checkForRecord(rec)!.status === "verified" ? "Verified" : checkForRecord(rec)!.status === "failed" ? "Error" : "Pending"}
                     </StatusChip>
                   )}
                 </div>
@@ -225,6 +232,11 @@ export default function DNSSetupPage() {
                     <p className="text-sm text-[#f8fafc]">{check.type} record</p>
                     <p className="text-xs text-[#a7b0c3]">
                       Expected <span className="font-mono">{check.expected}</span> on <span className="font-mono">{check.host}</span>
+                      {check.actual ? (
+                        <>
+                          {" "}Actual <span className="font-mono">{check.actual}</span>
+                        </>
+                      ) : null}
                     </p>
                   </div>
                   <StatusChip status={statusToChip(check.status)}>

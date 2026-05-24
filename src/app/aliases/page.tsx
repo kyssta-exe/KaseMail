@@ -30,8 +30,6 @@ import {
   Plus,
   Send,
   Trash2,
-  ToggleLeft,
-  ToggleRight,
 } from "lucide-react"
 import type { Alias } from "@/lib/types"
 import { api } from "@/lib/api-service"
@@ -45,21 +43,31 @@ function mapAlias(alias: any): Alias {
   }
 }
 
+type WorkspaceOption = { id: string; name: string }
+type DomainOption = { id: string; name: string; workspaceId: string }
+
 export default function AliasesPage() {
   const [aliases, setAliases] = useState<Alias[]>([])
-  const [domains, setDomains] = useState<{ id: string; name: string }[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
+  const [domains, setDomains] = useState<DomainOption[]>([])
   const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [aliasWorkspace, setAliasWorkspace] = useState("")
   const [aliasName, setAliasName] = useState("")
   const [aliasDomain, setAliasDomain] = useState("")
   const [forwardTo, setForwardTo] = useState("")
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmAction, setConfirmAction] = useState<{ type: "delete" | "disable"; id: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: "delete"; id: string } | null>(null)
 
   useEffect(() => {
     api.getAliases().then((items) => setAliases(items.map(mapAlias)))
+    api.getWorkspaces().then((items) => {
+      const mapped = items.map((w: WorkspaceOption) => ({ id: w.id, name: w.name }))
+      setWorkspaces(mapped)
+      if (mapped[0]) setAliasWorkspace(mapped[0].id)
+    })
     api.getDomains().then((items) => {
-      const mapped = items.map((d: any) => ({ id: d.id, name: d.name }))
+      const mapped = items.map((d: any) => ({ id: d.id, name: d.name, workspaceId: d.workspaceId }))
       setDomains(mapped)
       if (mapped[0]) setAliasDomain(mapped[0].name)
     })
@@ -72,7 +80,6 @@ export default function AliasesPage() {
 
   const total = aliases.length
   const active = aliases.filter((a) => a.status === "active").length
-  const disabled = aliases.filter((a) => a.status === "disabled").length
 
   async function handleAdd() {
     if (!aliasName || !aliasDomain || !forwardTo) {
@@ -80,10 +87,9 @@ export default function AliasesPage() {
       return
     }
     try {
-      const domain = domains.find((d) => d.name === aliasDomain)
-      const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID || ""
-      if (!workspaceId || !domain?.id) throw new Error("Default workspace/domain is not configured")
-      await api.createAlias({ workspaceId, domainId: domain.id, address: `${aliasName}@${aliasDomain}`, targets: [forwardTo] })
+      const domain = domains.find((d) => d.name === aliasDomain && d.workspaceId === aliasWorkspace)
+      if (!aliasWorkspace || !domain?.id) throw new Error("Select a workspace and domain")
+      await api.createAlias({ workspaceId: aliasWorkspace, domainId: domain.id, address: `${aliasName}@${aliasDomain}`, targets: [forwardTo] })
       const items = await api.getAliases()
       setAliases(items.map(mapAlias))
       toast.success("Alias created successfully")
@@ -93,31 +99,6 @@ export default function AliasesPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Alias creation failed")
     }
-  }
-
-  function handleToggleStatus(id: string) {
-    const target = aliases.find((a) => a.id === id)
-    if (!target) return
-    const isActive = target.status === "active"
-    setConfirmAction({ type: "disable", id })
-    setConfirmOpen(true)
-  }
-
-  function executeToggle() {
-    if (!confirmAction || confirmAction.type !== "disable") return
-    const target = aliases.find((a) => a.id === confirmAction.id)
-    if (!target) return
-    const isActive = target.status === "active"
-    setAliases((prev) =>
-      prev.map((a) =>
-        a.id === confirmAction.id
-          ? { ...a, status: isActive ? "disabled" as const : "active" as const }
-          : a
-      )
-    )
-    toast.success(isActive ? "Alias disabled" : "Alias enabled")
-    setConfirmOpen(false)
-    setConfirmAction(null)
   }
 
   function handleDelete(id: string) {
@@ -160,6 +141,22 @@ export default function AliasesPage() {
 
             <div className="space-y-4">
               <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#f8fafc]">Workspace</label>
+                <Select value={aliasWorkspace} onValueChange={(v: string | null) => { if (v) setAliasWorkspace(v); }}>
+                  <SelectTrigger className="h-10 w-full rounded-xl border-white/10 bg-white/[0.04] text-[#f8fafc]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border border-white/[0.06] bg-[rgba(10,16,34,0.96)] backdrop-blur-2xl text-[#f8fafc]">
+                    {workspaces.map((w) => (
+                      <SelectItem key={w.id} value={w.id} className="text-[#f8fafc] focus:bg-white/[0.06]">
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#f8fafc]">Alias Name</label>
                 <Input
                   value={aliasName}
@@ -179,7 +176,7 @@ export default function AliasesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="border border-white/[0.06] bg-[rgba(10,16,34,0.96)] backdrop-blur-2xl text-[#f8fafc]">
-                    {domains.map((d) => (
+                    {domains.filter((d) => !aliasWorkspace || d.workspaceId === aliasWorkspace).map((d) => (
                       <SelectItem key={d.id} value={d.name} className="text-[#f8fafc] focus:bg-white/[0.06]">
                         {d.name}
                       </SelectItem>
@@ -216,7 +213,7 @@ export default function AliasesPage() {
         </Dialog>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <GlassCard className="p-5">
           <p className="text-sm text-[#a7b0c3]">Total Aliases</p>
           <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{total}</p>
@@ -224,10 +221,6 @@ export default function AliasesPage() {
         <GlassCard className="p-5">
           <p className="text-sm text-[#a7b0c3]">Active</p>
           <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{active}</p>
-        </GlassCard>
-        <GlassCard className="p-5">
-          <p className="text-sm text-[#a7b0c3]">Disabled</p>
-          <p className="mt-1 text-2xl font-semibold text-[#f8fafc]">{disabled}</p>
         </GlassCard>
       </div>
 
@@ -274,19 +267,6 @@ export default function AliasesPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        className="h-8 w-8 rounded-lg text-[#a7b0c3] hover:text-[#f8fafc] hover:bg-white/[0.06]"
-                        onClick={() => handleToggleStatus(alias.id)}
-                        title={alias.status === "active" ? "Disable" : "Enable"}
-                      >
-                        {alias.status === "active" ? (
-                          <ToggleRight className="h-4 w-4" />
-                        ) : (
-                          <ToggleLeft className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
                         className="h-8 w-8 rounded-lg text-[#f87171] hover:text-[#f87171] hover:bg-[rgba(248,113,113,0.1)]"
                         onClick={() => handleDelete(alias.id)}
                         title="Delete"
@@ -319,14 +299,10 @@ export default function AliasesPage() {
         <DialogContent className="border border-white/[0.06] bg-[rgba(10,16,34,0.96)] backdrop-blur-2xl text-[#f8fafc] sm:max-w-[360px]">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-[#f8fafc]">
-              {confirmAction?.type === "delete" ? "Delete Alias" : confirmAction?.type === "disable" && aliases.find((a) => a.id === confirmAction?.id)?.status === "active" ? "Disable Alias" : "Enable Alias"}
+              Delete Alias
             </DialogTitle>
             <DialogDescription className="text-sm text-[#a7b0c3]">
-              {confirmAction?.type === "delete"
-                ? "This action cannot be undone. The alias will be permanently removed."
-                : aliases.find((a) => a.id === confirmAction?.id)?.status === "active"
-                  ? "The alias will stop forwarding emails to the destination mailbox."
-                  : "The alias will resume forwarding emails to the destination mailbox."}
+              This action cannot be undone. The alias will be permanently removed.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="border-t border-white/[0.06] px-0 pb-0 pt-4">
@@ -341,15 +317,11 @@ export default function AliasesPage() {
               Cancel
             </Button>
             <AppButton
-              variant={confirmAction?.type === "delete" ? "danger" : "primary"}
+              variant="danger"
               className="flex-1"
-              onClick={confirmAction?.type === "delete" ? executeDelete : executeToggle}
+              onClick={executeDelete}
             >
-              {confirmAction?.type === "delete"
-                ? "Delete"
-                : aliases.find((a) => a.id === confirmAction?.id)?.status === "active"
-                  ? "Disable"
-                  : "Enable"}
+              Delete
             </AppButton>
           </DialogFooter>
         </DialogContent>

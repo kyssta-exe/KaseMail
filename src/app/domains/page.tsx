@@ -9,7 +9,6 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { AppButton } from "@/components/ui/app-button"
 import { StatusChip, statusToChip } from "@/components/ui/status-chip"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -43,17 +42,45 @@ import {
 import { api } from "@/lib/api-service"
 import type { Domain } from "@/lib/types"
 
-function mapDomain(domain: any): Domain {
-  const latest = domain.dnsChecks?.[0]
+type WorkspaceOption = { id: string; name: string }
+type DomainApi = {
+  id: string
+  name: string
+  status: "CREATED" | "AWAITING_OWNERSHIP" | "DNS_PENDING" | "ACTIVE" | "SUSPENDED" | "ARCHIVED"
+  createdAt?: string
+  dkimPublicKey?: string | null
+  dnsChecks?: { type: string; status: "verified" | "pending" | "failed"; checkedAt: string }[]
+  _count?: { mailboxes: number }
+}
+
+function latestChecksByType(checks: DomainApi["dnsChecks"] = []) {
+  const latest = new Map<string, { type: string; status: "verified" | "pending" | "failed"; checkedAt: string }>()
+  for (const check of checks) {
+    if (!latest.has(check.type)) latest.set(check.type, check)
+  }
+  return latest
+}
+
+function mapDomain(domain: DomainApi): Domain {
+  const latestChecks = latestChecksByType(domain.dnsChecks)
+  const checkValues = [...latestChecks.values()]
   const status: Domain["status"] = domain.status === "ACTIVE" ? "healthy" : domain.status === "DNS_PENDING" ? "warning" : domain.status === "SUSPENDED" ? "error" : "warning"
+  const dnsStatus: Domain["dnsStatus"] = checkValues.length === 0
+    ? "warning"
+    : checkValues.every((check) => check.status === "verified")
+      ? "valid"
+      : checkValues.some((check) => check.status === "failed")
+        ? "invalid"
+        : "warning"
+  const dmarcStatus = latestChecks.get("DMARC")?.status === "verified" ? "pass" : "none"
   return {
     id: domain.id,
     name: domain.name,
     status,
     mailboxes: domain._count?.mailboxes ?? 0,
-    dnsStatus: latest?.status === "verified" ? "valid" : latest?.status === "failed" ? "invalid" : "warning",
+    dnsStatus,
     dkim: domain.dkimPublicKey ? "pass" : "fail",
-    dmarc: "none",
+    dmarc: dmarcStatus,
     createdDate: domain.createdAt ? new Date(domain.createdAt).toLocaleDateString() : "-",
   }
 }
@@ -61,14 +88,25 @@ function mapDomain(domain: any): Domain {
 export default function DomainsPage() {
   const router = useRouter()
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [dnsFilter, setDnsFilter] = useState("all")
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [domains, setDomains] = useState<Domain[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
+  const [workspaceId, setWorkspaceId] = useState("")
   const [domainName, setDomainName] = useState("")
-  const [quotaGb, setQuotaGb] = useState("10")
-  const [catchAll, setCatchAll] = useState(false)
+
+  async function loadDomains() {
+    api.getDomains().then((items) => setDomains(items.map(mapDomain)))
+  }
 
   useEffect(() => {
-    api.getDomains().then((items) => setDomains(items.map(mapDomain)))
+    loadDomains()
+    api.getWorkspaces().then((items) => {
+      const options = items.map((workspace: WorkspaceOption) => ({ id: workspace.id, name: workspace.name }))
+      setWorkspaces(options)
+      setWorkspaceId((current) => current || options[0]?.id || "")
+    })
 
     const params = new URLSearchParams(window.location.search)
     if (params.get("add") === "true") {
@@ -76,7 +114,12 @@ export default function DomainsPage() {
     }
   }, [])
 
-  const filtered = domains.filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered = domains.filter((d) => {
+    const matchesSearch = d.name.toLowerCase().includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || d.status === statusFilter
+    const matchesDns = dnsFilter === "all" || d.dnsStatus === dnsFilter
+    return matchesSearch && matchesStatus && matchesDns
+  })
 
   const total = domains.length
   const healthy = domains.filter((d) => d.status === "healthy").length
@@ -89,9 +132,8 @@ export default function DomainsPage() {
       return
     }
     try {
-      const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID || ""
-      if (!workspaceId) throw new Error("NEXT_PUBLIC_DEFAULT_WORKSPACE_ID is not configured")
-      const res = await api.createDomain({ workspaceId, name: domainName.trim(), defaultQuotaMb: Number(quotaGb) * 1024, catchAll })
+      if (!workspaceId) throw new Error("Select a workspace before adding a domain")
+      const res = await api.createDomain({ workspaceId, name: domainName.trim() })
       toast.success("Domain added. Redirecting to DNS setup...")
       setDrawerOpen(false)
       setDomainName("")
@@ -148,7 +190,7 @@ export default function DomainsPage() {
               className="h-9 rounded-xl border-white/10 bg-white/[0.04] pl-9 text-sm text-[#f8fafc] placeholder:text-[#a7b0c3]"
             />
           </div>
-          <Select defaultValue="all">
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value || "all")}>
             <SelectTrigger className="h-9 min-w-[130px] rounded-xl border-white/10 bg-white/[0.04] text-[#f8fafc]">
               <SelectValue />
             </SelectTrigger>
@@ -159,7 +201,7 @@ export default function DomainsPage() {
               <SelectItem value="error">Error</SelectItem>
             </SelectContent>
           </Select>
-          <Select defaultValue="all">
+          <Select value={dnsFilter} onValueChange={(value) => setDnsFilter(value || "all")}>
             <SelectTrigger className="h-9 min-w-[130px] rounded-xl border-white/10 bg-white/[0.04] text-[#f8fafc]">
               <SelectValue />
             </SelectTrigger>
@@ -177,6 +219,7 @@ export default function DomainsPage() {
           <Button
             variant="ghost"
             className="h-9 w-9 rounded-xl text-[#a7b0c3] hover:text-[#f8fafc]"
+            onClick={loadDomains}
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -295,6 +338,24 @@ export default function DomainsPage() {
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#f8fafc]">
+                  Workspace
+                </label>
+                <Select value={workspaceId} onValueChange={(value) => setWorkspaceId(value || "")}>
+                  <SelectTrigger className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-sm text-[#f8fafc]">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.id} value={workspace.id}>
+                        {workspace.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#f8fafc]">
                   Domain name
                 </label>
                 <Input
@@ -306,36 +367,6 @@ export default function DomainsPage() {
                 <p className="mt-1 text-xs text-[#717b91]">
                   Enter the domain you want to add.
                 </p>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#f8fafc]">
-                  Default mailbox quota
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    value={quotaGb}
-                    onChange={(event) => setQuotaGb(event.target.value)}
-                    className="h-10 w-20 rounded-xl border-white/10 bg-white/[0.04] text-sm text-[#f8fafc] placeholder:text-[#a7b0c3]"
-                  />
-                  <div className="flex h-10 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-[#f8fafc]">
-                    GB
-                  </div>
-                </div>
-                <p className="mt-1 text-xs text-[#717b91]">
-                  Set the default storage quota for mailboxes.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-[#f8fafc]">Enable catch-all</p>
-                  <p className="text-xs text-[#717b91]">
-                    Automatically accept emails sent to unknown addresses.
-                  </p>
-                </div>
-                <Switch checked={catchAll} onCheckedChange={setCatchAll} />
               </div>
 
               <div className="rounded-xl border border-[rgba(79,140,255,0.2)] bg-[rgba(79,140,255,0.06)] px-4 py-3">

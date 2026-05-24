@@ -18,6 +18,10 @@ export function validateEnv(): void {
     warnings.push("ENCRYPTION_KEY is empty. Set a random 32-byte hex string for production.")
   }
 
+  if (process.env.NODE_ENV === "production" && (!config.smtp.host || !config.smtp.from)) {
+    warnings.push("SMTP_HOST and SMTP_FROM are not configured. Password reset emails will not be sent.")
+  }
+
   if (config.mailCoreAdapter === "stalwart") {
     if (!config.stalwart.apiKey) {
       warnings.push("STALWART_API_KEY is empty. Mail core operations will fail.")

@@ -39,7 +39,7 @@ Self-hosted email management panel with webmail, domain/DNS management, quaranti
 
 ```bash
 ssh root@your-vps
-git clone https://github.com/your-org/kasemail /opt/kasemail
+git clone https://github.com/kyssta-exe/KaseMail /opt/kasemail
 cd /opt/kasemail
 sudo bash scripts/install-vps.sh
 ```
@@ -98,15 +98,17 @@ npm run dev
 | `STALWART_API_KEY` | Stalwart auth token | auto-generated |
 | `NEXT_PUBLIC_APP_URL` | Public panel URL | `http://localhost:3000` |
 | `NEXT_PUBLIC_WEBMAIL_URL` | Public webmail URL | `http://localhost:3000` |
+| `MAIL_HOST` | Public mail hostname used in MX/DNS checks | required in production |
+| `MAIL_IP` | Public mail server IP for A-record checks | optional |
+| `SMTP_HOST` | SMTP server for password reset email | required for password resets |
+| `SMTP_FROM` | Sender address for password reset email | required for password resets |
+| `KASEMAIL_GITHUB_REPO` | GitHub repo for update checks | `kyssta-exe/KaseMail` |
 
 ## Commands
 
 ```bash
 # Build
 npm run build
-
-# Type check
-npm run typecheck
 
 # Lint
 npm run lint

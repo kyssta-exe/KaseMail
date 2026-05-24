@@ -34,7 +34,7 @@ export const api = {
 
   getDomains: async () => (await apiFetch<{ domains: any[] }>("/api/domains")).domains,
   getDomain: async (id: string) => (await apiFetch<{ domain: any }>(`/api/domains/${id}`)).domain,
-  createDomain: (data: { workspaceId: string; name: string; defaultQuotaMb?: number; catchAll?: boolean }) =>
+  createDomain: (data: { workspaceId: string; name: string }) =>
     apiFetch<any>("/api/domains", { method: "POST", body: JSON.stringify(data) }),
   checkDns: (id: string) =>
     apiFetch<any>(`/api/domains/${id}/check-dns`, { method: "POST" }),

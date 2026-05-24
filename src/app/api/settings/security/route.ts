@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
+import { z } from "zod"
+
+const securitySchema = z.object({
+  twoFactorOn: z.boolean().optional(),
+}).strict()
 
 export const GET = apiHandler(async (_req, { user }) => {
   const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { twoFactorOn: true } })
@@ -9,7 +14,9 @@ export const GET = apiHandler(async (_req, { user }) => {
 })
 
 export const PATCH = apiHandler(async (req, { user }) => {
-  const body = await req.json()
-  await prisma.userSettings.upsert({ where: { userId: user.id }, update: body, create: { userId: user.id, ...body } })
+  const body = securitySchema.parse(await req.json())
+  if (typeof body.twoFactorOn === "boolean") {
+    await prisma.user.update({ where: { id: user.id }, data: { twoFactorOn: body.twoFactorOn } })
+  }
   return NextResponse.json({ success: true })
 })

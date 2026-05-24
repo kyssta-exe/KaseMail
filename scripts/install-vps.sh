@@ -123,7 +123,7 @@ while :; do
   warn "Invalid domain format."
 done
 
-prompt "Mail core [mailcow/stalwart] (default: mailcow): "; read -r MAIL_CORE
+prompt "Mail core [mailcow/stalwart] (default: stalwart): "; read -r MAIL_CORE
 MAIL_CORE="${MAIL_CORE:-stalwart}"
 [[ "$MAIL_CORE" == "mailcow" || "$MAIL_CORE" == "stalwart" ]] || fail "Mail core must be 'mailcow' or 'stalwart'."
 
@@ -203,15 +203,25 @@ MAILCOW_API_KEY=
 STALWART_API_URL=http://stalwart:8080
 STALWART_API_KEY=${STALWART_API_KEY}
 STALWART_ADMIN_USER=admin
+MAIL_HOST=${MAIL_DOMAIN}
+MAIL_IP=${PUBLIC_IP}
 
 # App URLs
 NEXT_PUBLIC_APP_URL=https://${PANEL_DOMAIN}
 NEXT_PUBLIC_WEBMAIL_URL=https://${WEBMAIL_DOMAIN}
-NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=placeholder
 NEXT_PUBLIC_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.1.0")
+KASEMAIL_GITHUB_REPO=kyssta-exe/KaseMail
 
 # Encryption
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
+
+# Outbound mail for password reset
+SMTP_HOST=${MAIL_DOMAIN}
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM="KaseMail <no-reply@${MAIL_DOMAIN#mail.}>"
 
 # Backup
 BACKUP_TARGET=${APP_DIR}/backups
@@ -247,7 +257,6 @@ ufw allow 25/tcp comment 'SMTP'
 ufw allow 465/tcp comment 'SMTPS'
 ufw allow 587/tcp comment 'MSA'
 ufw allow 993/tcp comment 'IMAPS'
-ufw allow 8080/tcp comment 'Stalwart API'
 ufw --force enable
 ok "Firewall configured"
 
@@ -273,8 +282,6 @@ log "Seeding superadmin and default workspace"
 SEED_OUTPUT="$(docker compose --env-file .env.production exec -T app npm run db:seed --silent 2>/dev/null || echo "")"
 DEFAULT_WORKSPACE_ID="$(printf '%s' "$SEED_OUTPUT" | sed -n 's/.*"workspaceId": "\([^"]*\)".*/\1/p' | tail -n1)"
 if [[ -n "$DEFAULT_WORKSPACE_ID" ]]; then
-  sed -i "s/^NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=.*/NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=${DEFAULT_WORKSPACE_ID}/" .env.production
-  docker compose --env-file .env.production up -d --build app
   ok "Workspace seeded (ID: ${DEFAULT_WORKSPACE_ID})"
 fi
 

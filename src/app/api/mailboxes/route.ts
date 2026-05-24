@@ -3,15 +3,16 @@ import { prisma } from "@/lib/prisma"
 import { apiHandler } from "@/lib/api-handler"
 import { logAudit } from "@/lib/audit"
 import { getMailCore } from "@/lib/mail-core"
+import { checkDomainInWorkspace, checkWorkspaceAccess } from "@/lib/rbac"
 import { z } from "zod"
 
 const createSchema = z.object({
   workspaceId: z.string(),
   domainId: z.string(),
-  localPart: z.string().min(1),
-  name: z.string().min(1),
-  password: z.string().min(6),
-  quotaMb: z.number().optional(),
+  localPart: z.string().trim().toLowerCase().regex(/^[a-z0-9._%+-]{1,64}$/, "Invalid mailbox local part"),
+  name: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(256),
+  quotaMb: z.number().int().min(128).max(1024 * 1024).optional(),
 })
 
 export const GET = apiHandler(async (_req, { user }) => {
@@ -27,8 +28,8 @@ export const GET = apiHandler(async (_req, { user }) => {
 
 export const POST = apiHandler(async (req, { user }) => {
   const body = createSchema.parse(await req.json())
-  const { checkWorkspaceAccess } = await import("@/lib/rbac")
   await checkWorkspaceAccess(user.id, body.workspaceId)
+  await checkDomainInWorkspace(user.id, body.workspaceId, body.domainId)
 
   const domain = await prisma.domain.findUnique({ where: { id: body.domainId } })
   if (!domain) return NextResponse.json({ error: "Domain not found" }, { status: 404 })
@@ -45,17 +46,23 @@ export const POST = apiHandler(async (req, { user }) => {
     quotaMb: quota,
   })
 
-  const mailbox = await prisma.mailbox.create({
-    data: {
-      workspaceId: body.workspaceId,
-      domainId: body.domainId,
-      localPart: body.localPart,
-      address,
-      quotaMb: quota,
-      mailCoreId: mailCoreResult.id,
-      status: "ACTIVE",
-    },
-  })
+  let mailbox
+  try {
+    mailbox = await prisma.mailbox.create({
+      data: {
+        workspaceId: body.workspaceId,
+        domainId: body.domainId,
+        localPart: body.localPart,
+        address,
+        quotaMb: quota,
+        mailCoreId: mailCoreResult.id,
+        status: "ACTIVE",
+      },
+    })
+  } catch (error) {
+    await mailCore.deleteMailbox(mailCoreResult.id || address).catch(() => undefined)
+    throw error
+  }
 
   await logAudit({
     actorUserId: user.id,
