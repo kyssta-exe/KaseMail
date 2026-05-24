@@ -1,81 +1,76 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-APP_DIR="/opt/kasemail"
-COMPOSE_FILE="${APP_DIR}/scripts/docker-compose.production.yml"
+ROOT_DIR="/opt/kasemail"
+APP_DIR="${ROOT_DIR}/app"
+REPO_URL="${KASEMAIL_REPO_URL:-https://github.com/kyssta-exe/KaseMail.git}"
 ENV_FILE="${APP_DIR}/.env.production"
-BACKUP_DIR="${APP_DIR}/backups/pre-update"
-REPO_URL="https://github.com/your-org/kasemail.git"
+COMPOSE_FILE="${APP_DIR}/docker-compose.yml"
+BACKUP_DIR="${ROOT_DIR}/backups/pre-update-$(date +%Y%m%d-%H%M%S)"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 log() { echo -e "${GREEN}[$(date +%H:%M:%S)]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-cleanup() {
-  if [ $? -ne 0 ]; then
-    err "Update failed! Rolling back..."
-    if [ -d "$BACKUP_DIR" ]; then
-      cp "$BACKUP_DIR/.env.production" "$ENV_FILE" 2>/dev/null || true
-      warn "Manual restore may be needed: docker compose down && docker compose up -d"
-    fi
-  fi
-}
-trap cleanup EXIT
-
-cd "$APP_DIR"
-
-# --- Check current version ---
-CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
-log "Current version: ${CURRENT_VERSION}"
-
-# --- Fetch latest ---
-log "Fetching latest release info..."
-git fetch --tags --force 2>&1 || { warn "Git fetch failed (no network? remaining on current version)"; exit 0; }
-
-LATEST_TAG=$(git tag --sort=-v:refname 2>/dev/null | head -1)
-if [ -z "$LATEST_TAG" ]; then
-  LATEST_TAG=$(git rev-parse --short HEAD)
+if [[ $EUID -ne 0 ]]; then
+  err "Run as root: sudo bash scripts/update.sh"
+  exit 1
 fi
 
-if [ "$CURRENT_VERSION" = "$LATEST_TAG" ]; then
-  log "Already up-to-date (${CURRENT_VERSION})."
-  exit 0
+if [[ ! -f "$ENV_FILE" ]]; then
+  err "Missing $ENV_FILE. Run installer first."
+  exit 1
 fi
 
-log "Updating: ${CURRENT_VERSION} → ${LATEST_TAG}"
-
-# --- Backup ---
-log "Backing up current state..."
 mkdir -p "$BACKUP_DIR"
-cp "$ENV_FILE" "$BACKUP_DIR/.env.production" 2>/dev/null || true
-docker compose -f "$COMPOSE_FILE" exec -T postgres pg_dump -U kasemail kasemail > "$BACKUP_DIR/db-pre-update.sql" 2>/dev/null || warn "DB backup skipped (postgres not running)"
+cp "$ENV_FILE" "$BACKUP_DIR/.env.production"
 
-# --- Pull latest code ---
-log "Pulling ${LATEST_TAG}..."
-git checkout "$LATEST_TAG" 2>&1 || { err "Git checkout failed"; exit 1; }
+log "Backing up database"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T postgres pg_dump -U kasemail kasemail > "$BACKUP_DIR/db.sql" 2>/dev/null || warn "Database backup skipped"
 
-# --- Rebuild & restart ---
-log "Rebuilding Docker images..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull app 2>&1 || { err "Docker build failed"; exit 1; }
+if [[ ! -d "$APP_DIR/.git" ]]; then
+  log "Converting installed copy to git-managed checkout"
+  mv "$APP_DIR" "${APP_DIR}.old.$(date +%s)"
+  git clone "$REPO_URL" "$APP_DIR"
+  cp "$BACKUP_DIR/.env.production" "$ENV_FILE"
+  cd "$APP_DIR"
+  cp scripts/docker-compose.production.yml docker-compose.yml
+else
+  cd "$APP_DIR"
+fi
 
-log "Running database migrations..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres 2>/dev/null
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm app sh -c "./node_modules/.bin/prisma db push --accept-data-loss" 2>&1 || warn "Migration had issues (schema may not match)"
+log "Fetching latest code"
+git fetch origin main --tags
+CURRENT="$(git rev-parse --short HEAD)"
+LATEST="$(git rev-parse --short origin/main)"
 
-log "Restarting services..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate app stalwart 2>&1 || { err "Service restart failed"; exit 1; }
+if [[ "$CURRENT" == "$LATEST" ]]; then
+  log "Code already up-to-date (${CURRENT})"
+else
+  log "Updating ${CURRENT} -> ${LATEST}"
+  git checkout main
+  git reset --hard origin/main
+fi
 
-# --- Cleanup old images ---
-docker image prune -f 2>/dev/null || true
+cp scripts/docker-compose.production.yml docker-compose.yml
 
-log "Update complete! Running ${LATEST_TAG}"
-echo ""
-echo "  Panel:   https://$(grep PANEL_DOMAIN "$ENV_FILE" | cut -d= -f2)"
-echo "  Webmail: https://$(grep WEBMAIL_DOMAIN "$ENV_FILE" | cut -d= -f2)"
-echo ""
-echo "  To rollback: cd ${APP_DIR} && git checkout ${CURRENT_VERSION} && bash scripts/update.sh"
+log "Rebuilding app image"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull app
+
+log "Starting infrastructure"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres redis stalwart
+
+log "Applying database schema"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps --entrypoint "" app ./node_modules/.bin/prisma db push --accept-data-loss
+
+log "Re-seeding admin/workspace"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps --entrypoint "" app npm run db:seed --silent || warn "Seed skipped"
+
+log "Restarting app"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate app
+
+docker image prune -f >/dev/null 2>&1 || true
+
+log "Update complete (${LATEST})"
+echo "Backup: $BACKUP_DIR"

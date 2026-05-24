@@ -37,5 +37,8 @@ export function validateCsrf(req: Request): boolean {
 
 export async function csrfGuard(req: Request): Promise<void> {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return
-  if (!validateCsrf(req)) throw new Error("CSRF validation failed")
+  if (!validateCsrf(req)) {
+    const { AppError } = await import("./errors")
+    throw new AppError("CSRF validation failed", 403)
+  }
 }

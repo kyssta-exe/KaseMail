@@ -16,4 +16,4 @@ export const POST = apiHandler(async (req) => {
     console.log(`Password reset token for ${email}: ${token}`)
   }
   return NextResponse.json({ success: true })
-}, { auth: false, rateLimit: { key: "forgot-pw:{ip}", max: 3, windowMs: 60000 } })
+}, { auth: false, csrf: false, rateLimit: { key: "forgot-pw:{ip}", max: 3, windowMs: 60000 } })

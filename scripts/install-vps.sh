@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 
 APP_DIR="/opt/kasemail"
-REPO_URL="${KASEMAIL_REPO_URL:-}"
+REPO_URL="${KASEMAIL_REPO_URL:-https://github.com/kyssta-exe/KaseMail.git}"
 MAIL_CORE="${MAIL_CORE:-stalwart}"
 PUBLIC_IP="$(curl -4fsS https://api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")"
 

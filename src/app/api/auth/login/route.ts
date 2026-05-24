@@ -20,4 +20,4 @@ export const POST = apiHandler(async (req) => {
   cookieStore.set("session", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/" })
 
   return NextResponse.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role } })
-}, { auth: false, rateLimit: { key: "login:{ip}", max: 5, windowMs: 60000 } })
+}, { auth: false, csrf: false, rateLimit: { key: "login:{ip}", max: 5, windowMs: 60000 } })

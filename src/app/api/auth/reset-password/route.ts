@@ -17,4 +17,4 @@ export const POST = apiHandler(async (req) => {
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } })
   await prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } })
   return NextResponse.json({ success: true })
-}, { auth: false, rateLimit: { key: "reset-pw:{ip}", max: 3, windowMs: 60000 } })
+}, { auth: false, csrf: false, rateLimit: { key: "reset-pw:{ip}", max: 3, windowMs: 60000 } })
