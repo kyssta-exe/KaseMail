@@ -13,7 +13,7 @@ log()  { printf "${BLUE}==>${NC} %s\n" "$*"; }
 ok()   { printf "${GREEN}OK:${NC} %s\n" "$*"; }
 warn() { printf "${YELLOW}WARN:${NC} %s\n" "$*"; }
 fail() { printf "${RED}ERROR:${NC} %s\n" "$*" >&2; exit 1; }
-rand() { openssl rand -base64 48 | tr -d '\n'; }
+rand() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48; }
 prompt() { printf "${CYAN}?${NC} %s" "$*"; }
 
 trap 'fail "Installation failed on line $LINENO. Check /opt/kasemail/logs/install.log for details."' ERR
