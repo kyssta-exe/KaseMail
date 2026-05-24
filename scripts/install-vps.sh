@@ -5,6 +5,7 @@ set -Eeuo pipefail
 
 APP_DIR="/opt/kasemail"
 REPO_URL="${KASEMAIL_REPO_URL:-}"
+MAIL_CORE="${MAIL_CORE:-stalwart}"
 PUBLIC_IP="$(curl -4fsS https://api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
