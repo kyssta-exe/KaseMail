@@ -16,6 +16,7 @@ import {
   Network,
   ShieldCheck,
   Shield,
+  History,
   Settings,
   Search,
   Bell,
@@ -32,6 +33,7 @@ const navItems = [
   { label: "Aliases", href: "/aliases", icon: Send },
   { label: "DNS Setup", href: "/dns", icon: Network },
   { label: "Server Health", href: "/server-health", icon: ShieldCheck },
+  { label: "Audit Logs", href: "/audit-logs", icon: History },
   { label: "Security", href: "/security/quarantine", icon: Shield },
   { label: "Settings", href: "/settings", icon: Settings },
 ]

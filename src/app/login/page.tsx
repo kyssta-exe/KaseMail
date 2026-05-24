@@ -42,6 +42,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -54,6 +58,20 @@ export default function LoginPage() {
       toast.error(error instanceof Error ? error.message : "Sign in failed")
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleForgotPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setResetLoading(true)
+    try {
+      await api.forgotPassword(resetEmail)
+      setResetSent(true)
+      toast.success("If that email is registered, a reset link has been sent.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed")
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -187,7 +205,7 @@ export default function LoginPage() {
             </motion.div>
 
             {/* Form */}
-            <motion.form {...fadeUp(0.26)} className="mt-10 space-y-5" onSubmit={handleSubmit}>
+            <motion.form {...fadeUp(0.26)} className="mt-10 space-y-5" onSubmit={showForgotPassword ? handleForgotPassword : handleSubmit}>
               {/* Email field */}
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -234,21 +252,52 @@ export default function LoginPage() {
               </div>
 
               {/* Forgot password */}
-              <div className="flex justify-end">
-                <button className="text-[13px] text-[#5a6276] transition-colors hover:text-[#4f8cff]">
-                  Forgot password?
-                </button>
-              </div>
+              {!showForgotPassword && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-[13px] text-[#5a6276] transition-colors hover:text-[#4f8cff]"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
-              {/* Continue button */}
-              <AppButton className="relative h-13 w-full rounded-2xl text-[15px] font-semibold" disabled={loading}>
-                <span className="flex w-full items-center justify-between">
-                  {loading ? "Signing in..." : "Continue"}
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-                    <ArrowRight className="h-4 w-4" />
+              {showForgotPassword ? (
+                <div className="space-y-4">
+                  <p className="text-[13px] text-[#5a6276]"> Enter your email and we'll send a reset link.</p>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    className="h-13 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-4 pr-4 text-[15px] text-white placeholder:text-[#5a6276] outline-none transition-all duration-200 focus:border-[#4f8cff]/40 focus:bg-white/[0.06]"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setShowForgotPassword(false); setResetSent(false) }}
+                      className="h-13 flex-1 rounded-2xl border border-white/10 text-[14px] text-[#a7b0c3] transition-colors hover:bg-white/[0.04]"
+                    >
+                      Back
+                    </button>
+                    <AppButton className="relative h-13 flex-1 rounded-2xl text-[14px] font-semibold" disabled={resetLoading || resetSent}>
+                      {resetSent ? "Sent" : resetLoading ? "Sending..." : "Send Reset Link"}
+                    </AppButton>
+                  </div>
+                </div>
+              ) : (
+                <AppButton className="relative h-13 w-full rounded-2xl text-[15px] font-semibold" disabled={loading}>
+                  <span className="flex w-full items-center justify-between">
+                    {loading ? "Signing in..." : "Continue"}
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
                   </span>
-                </span>
-              </AppButton>
+                </AppButton>
+              )}
             </motion.form>
 
             {/* Divider with dot */}

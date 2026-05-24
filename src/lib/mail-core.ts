@@ -12,12 +12,131 @@ export type MailCoreAdapter = {
   createMailbox(input: CreateMailboxInput): Promise<{ id: string }>
   deleteMailbox(id: string): Promise<void>
   suspendMailbox(id: string): Promise<void>
+  unsuspendMailbox(id: string): Promise<void>
   listMailboxes(domain?: string): Promise<any[]>
   createAlias(address: string, targets: string[]): Promise<{ id: string }>
   deleteAlias(id: string): Promise<void>
-  getDkim(domain: string): Promise<any>
+  getDkim(domain: string): Promise<{ selector: string; privateKey: string; publicKey: string } | null>
   createDomain(domain: string): Promise<void>
   deleteDomain(domain: string): Promise<void>
+  healthCheck(): Promise<{ ok: boolean; message: string }>
+}
+
+class StalwartClient implements MailCoreAdapter {
+  private baseUrl: string
+  private token: string | null = null
+  private tokenExpiry = 0
+
+  constructor() {
+    this.baseUrl = config.stalwart.apiUrl.replace(/\/$/, "")
+  }
+
+  private async authHeaders(): Promise<Record<string, string>> {
+    if (this.token && Date.now() < this.tokenExpiry) {
+      return { Authorization: `Bearer ${this.token}` }
+    }
+    const res = await fetch(`${this.baseUrl}/api/authenticate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: config.stalwart.adminUser || "admin",
+        secret: config.stalwart.apiKey,
+      }),
+    })
+    if (!res.ok) throw new Error(`Stalwart auth failed: ${res.status}`)
+    const data = await res.json()
+    this.token = data.token
+    this.tokenExpiry = Date.now() + 300000
+    return { Authorization: `Bearer ${this.token}` }
+  }
+
+  private async request<T>(method: string, path: string, body?: any): Promise<T> {
+    const headers = await this.authHeaders()
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", ...headers },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`Stalwart API ${res.status}: ${text.slice(0, 300)}`)
+    }
+    if (res.status === 204 || res.headers.get("content-length") === "0") return undefined as T
+    return res.json()
+  }
+
+  async createMailbox(input: CreateMailboxInput): Promise<{ id: string }> {
+    const account = await this.request<any>("POST", "/api/account", {
+      name: `${input.localPart}@${input.domain}`,
+      description: input.name,
+      secrets: { password: input.password },
+      quota: { limit: input.quotaMb * 1024 * 1024 },
+    })
+    return { id: account.name || `${input.localPart}@${input.domain}` }
+  }
+
+  async deleteMailbox(id: string): Promise<void> {
+    await this.request("DELETE", `/api/account/${encodeURIComponent(id)}`)
+  }
+
+  async suspendMailbox(id: string): Promise<void> {
+    await this.request("PATCH", `/api/account/${encodeURIComponent(id)}`, { active: false })
+  }
+
+  async unsuspendMailbox(id: string): Promise<void> {
+    await this.request("PATCH", `/api/account/${encodeURIComponent(id)}`, { active: true })
+  }
+
+  async listMailboxes(domain?: string): Promise<any[]> {
+    const accounts = await this.request<any[]>("GET", "/api/account")
+    if (domain) return accounts.filter((a: any) => a.name?.endsWith(`@${domain}`))
+    return accounts
+  }
+
+  async createAlias(address: string, targets: string[]): Promise<{ id: string }> {
+    const group = await this.request<any>("POST", "/api/group", {
+      name: address,
+      members: targets,
+      description: `Alias for ${targets.join(", ")}`,
+    })
+    return { id: group.name || address }
+  }
+
+  async deleteAlias(id: string): Promise<void> {
+    await this.request("DELETE", `/api/group/${encodeURIComponent(id)}`)
+  }
+
+  async getDkim(domain: string): Promise<{ selector: string; privateKey: string; publicKey: string } | null> {
+    try {
+      const dkim = await this.request<any>("GET", `/api/dkim/${encodeURIComponent(domain)}`)
+      if (!dkim) return null
+      return {
+        selector: dkim.selector || "default",
+        privateKey: dkim.private_key || dkim.privateKey || "",
+        publicKey: dkim.public_key || dkim.publicKey || "",
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async createDomain(domain: string): Promise<void> {
+    await this.request("POST", "/api/domain", { name: domain })
+  }
+
+  async deleteDomain(domain: string): Promise<void> {
+    await this.request("DELETE", `/api/domain/${encodeURIComponent(domain)}`)
+  }
+
+  async healthCheck(): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) })
+      if (res.ok) return { ok: true, message: "Stalwart mail server reachable" }
+      return { ok: false, message: `Stalwart returned HTTP ${res.status}` }
+    } catch (e: any) {
+      return { ok: false, message: e.message || "Stalwart connection failed" }
+    }
+  }
 }
 
 class MailcowClient implements MailCoreAdapter {
@@ -39,12 +158,12 @@ class MailcowClient implements MailCoreAdapter {
       },
     })
     const text = await res.text()
-    if (!res.ok) throw new Error(`mailcow API ${res.status}: ${text.slice(0, 300)}`)
+    if (!res.ok) throw new Error(`Mailcow API ${res.status}: ${text.slice(0, 300)}`)
     return text ? JSON.parse(text) : undefined as T
   }
 
   async createMailbox(input: CreateMailboxInput) {
-    const result = await this.request(`/api/v1/add/mailbox`, {
+    const result = await this.request<any>("/api/v1/add/mailbox", {
       method: "POST",
       body: JSON.stringify({
         active: "1",
@@ -63,17 +182,15 @@ class MailcowClient implements MailCoreAdapter {
   }
 
   async deleteMailbox(id: string) {
-    await this.request(`/api/v1/delete/mailbox`, {
-      method: "POST",
-      body: JSON.stringify({ items: [id] }),
-    })
+    await this.request("/api/v1/delete/mailbox", { method: "POST", body: JSON.stringify({ items: [id] }) })
   }
 
   async suspendMailbox(id: string) {
-    await this.request(`/api/v1/edit/mailbox`, {
-      method: "POST",
-      body: JSON.stringify({ items: [id], attr: { active: "0" } }),
-    })
+    await this.request("/api/v1/edit/mailbox", { method: "POST", body: JSON.stringify({ items: [id], attr: { active: "0" } }) })
+  }
+
+  async unsuspendMailbox(id: string) {
+    await this.request("/api/v1/edit/mailbox", { method: "POST", body: JSON.stringify({ items: [id], attr: { active: "1" } }) })
   }
 
   async listMailboxes(domain = "all") {
@@ -81,7 +198,7 @@ class MailcowClient implements MailCoreAdapter {
   }
 
   async createAlias(address: string, targets: string[]) {
-    const result = await this.request("/api/v1/add/alias", {
+    const result = await this.request<any>("/api/v1/add/alias", {
       method: "POST",
       body: JSON.stringify({ active: "1", address, goto: targets.join(",") }),
     })
@@ -89,59 +206,34 @@ class MailcowClient implements MailCoreAdapter {
   }
 
   async deleteAlias(id: string) {
-    await this.request(`/api/v1/delete/alias`, {
-      method: "POST",
-      body: JSON.stringify({ items: [id] }),
-    })
+    await this.request("/api/v1/delete/alias", { method: "POST", body: JSON.stringify({ items: [id] }) })
   }
 
   async getDkim(domain: string) {
-    return this.request(`/api/v1/get/dkim/${encodeURIComponent(domain)}`, { method: "GET" })
+    try {
+      return await this.request<any>(`/api/v1/get/dkim/${encodeURIComponent(domain)}`, { method: "GET" })
+    } catch { return null }
   }
 
   async createDomain(domain: string) {
-    await this.request("/api/v1/add/domain", {
-      method: "POST",
-      body: JSON.stringify({ domain, active: "1" }),
-    })
+    await this.request("/api/v1/add/domain", { method: "POST", body: JSON.stringify({ domain, active: "1" }) })
   }
 
   async deleteDomain(domain: string) {
-    await this.request(`/api/v1/delete/domain`, {
-      method: "POST",
-      body: JSON.stringify({ items: [domain] }),
-    })
+    await this.request("/api/v1/delete/domain", { method: "POST", body: JSON.stringify({ items: [domain] }) })
   }
-}
 
-// Stub for Stalwart adapter - implement when switching mail core
-class StalwartClient implements MailCoreAdapter {
-  async createMailbox(_input: CreateMailboxInput): Promise<{ id: string }> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async deleteMailbox(_id: string): Promise<void> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async suspendMailbox(_id: string): Promise<void> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async listMailboxes(_domain?: string): Promise<any[]> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async createAlias(_address: string, _targets: string[]): Promise<{ id: string }> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async deleteAlias(_id: string): Promise<void> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async getDkim(_domain: string): Promise<any> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async createDomain(_domain: string): Promise<void> {
-    throw new Error("Stalwart adapter not yet implemented")
-  }
-  async deleteDomain(_domain: string): Promise<void> {
-    throw new Error("Stalwart adapter not yet implemented")
+  async healthCheck(): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/v1/domains`, {
+        headers: { "X-API-Key": this.apiKey },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (res.ok) return { ok: true, message: "Mailcow API reachable" }
+      return { ok: false, message: `Mailcow returned HTTP ${res.status}` }
+    } catch (e: any) {
+      return { ok: false, message: e.message || "Mailcow connection failed" }
+    }
   }
 }
 

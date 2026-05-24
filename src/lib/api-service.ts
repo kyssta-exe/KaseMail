@@ -81,4 +81,29 @@ export const api = {
 
   resetPassword: (token: string, password: string) =>
     apiFetch<any>("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) }),
+
+  getMailCoreHealth: () => apiFetch<{ ok: boolean; message: string }>("/api/mail-core-health"),
+
+  getMailFolders: (email: string, password: string) =>
+    apiFetch<{ folders: any[] }>("/api/mail/folders", { method: "POST", body: JSON.stringify({ email, password }) }),
+  getMessages: (email: string, password: string, mailboxId: string, limit?: number, position?: number) =>
+    apiFetch<any>("/api/mail/messages", { method: "POST", body: JSON.stringify({ email, password, mailboxId, limit, position }) }),
+  getMessage: (email: string, password: string, id: string) =>
+    apiFetch<{ message: any }>(`/api/mail/messages/${id}`, { method: "POST", body: JSON.stringify({ email, password }) }),
+  updateMessage: (id: string, email: string, password: string, action: string) =>
+    apiFetch<any>(`/api/mail/messages/${id}`, { method: "PATCH", body: JSON.stringify({ email, password, action }) }),
+  moveMessage: (id: string, email: string, password: string, targetMailboxId: string) =>
+    apiFetch<any>(`/api/mail/messages/${id}/move`, { method: "POST", body: JSON.stringify({ email, password, targetMailboxId }) }),
+  markSpam: (id: string, email: string, password: string, mailboxId: string) =>
+    apiFetch<any>(`/api/mail/messages/${id}/mark-spam`, { method: "POST", body: JSON.stringify({ email, password, mailboxId }) }),
+  sendMessage: (data: { email: string; password: string; to: string[]; subject: string; textBody: string; htmlBody?: string; cc?: string[]; bcc?: string[]; inReplyTo?: string }) =>
+    apiFetch<any>("/api/mail/send", { method: "POST", body: JSON.stringify(data) }),
+  saveDraft: (data: { email: string; password: string; to?: string[]; subject?: string; textBody?: string; draftId?: string }) =>
+    apiFetch<any>("/api/mail/drafts", { method: "POST", body: JSON.stringify(data) }),
+
+  getQuarantineMessages: () => apiFetch<{ messages: any[] }>("/api/quarantine"),
+  releaseQuarantine: (id: string) => apiFetch<any>(`/api/quarantine/${id}/release`, { method: "POST" }),
+  deleteQuarantine: (id: string) => apiFetch<any>(`/api/quarantine/${id}/delete`, { method: "DELETE" }),
+  allowlistQuarantine: (id: string) => apiFetch<any>(`/api/quarantine/${id}/allowlist`, { method: "POST" }),
+  blockQuarantine: (id: string) => apiFetch<any>(`/api/quarantine/${id}/block`, { method: "POST" }),
 }

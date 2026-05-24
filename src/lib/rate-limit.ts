@@ -1,3 +1,5 @@
+import { RateLimitError } from "./errors"
+
 const store = new Map<string, { count: number; resetAt: number }>()
 
 export function rateLimit(key: string, maxRequests: number = 10, windowMs: number = 60000): void {
@@ -10,7 +12,7 @@ export function rateLimit(key: string, maxRequests: number = 10, windowMs: numbe
   }
 
   if (entry.count >= maxRequests) {
-    throw new Error("Too many requests. Try again later.")
+    throw new RateLimitError()
   }
 
   entry.count++

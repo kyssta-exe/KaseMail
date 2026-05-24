@@ -69,6 +69,9 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 ok "All system dependencies installed"
+
+log "Pulling Stalwart mail server image"
+docker pull stalwartlabs/mail-server:latest 2>/dev/null || warn "Stalwart pull failed, will pull on compose up"
 echo ""
 
 # ---- Phase 2: Gather Configuration ----
@@ -118,7 +121,7 @@ while :; do
 done
 
 prompt "Mail core [mailcow/stalwart] (default: mailcow): "; read -r MAIL_CORE
-MAIL_CORE="${MAIL_CORE:-mailcow}"
+MAIL_CORE="${MAIL_CORE:-stalwart}"
 [[ "$MAIL_CORE" == "mailcow" || "$MAIL_CORE" == "stalwart" ]] || fail "Mail core must be 'mailcow' or 'stalwart'."
 
 prompt "Provision TLS certificates via Let's Encrypt? [Y/n]: "; read -r DO_SSL
@@ -157,6 +160,7 @@ log "Phase 3/5: Setting up KaseMail"
 DB_PASSWORD="$(rand)"
 JWT_SECRET="$(rand)"
 ENCRYPTION_KEY="$(openssl rand -hex 32)"
+STALWART_API_KEY="$(rand)"
 
 mkdir -p "$APP_DIR" "$APP_DIR/backups" "$APP_DIR/logs" "$APP_DIR/config"
 
@@ -189,17 +193,19 @@ DATABASE_URL=postgresql://kasemail:${DB_PASSWORD}@postgres:5432/kasemail?schema=
 JWT_SECRET=${JWT_SECRET}
 SESSION_EXPIRY_HOURS=72
 
-# Mail core
-MAIL_CORE_ADAPTER=${MAIL_CORE}
+# Mail core (Stalwart configured by default)
+MAIL_CORE_ADAPTER=stalwart
 MAILCOW_API_URL=https://${MAIL_DOMAIN}
 MAILCOW_API_KEY=
-STALWART_API_URL=https://${MAIL_DOMAIN}
-STALWART_API_KEY=
+STALWART_API_URL=http://stalwart:8080
+STALWART_API_KEY=${STALWART_API_KEY}
+STALWART_ADMIN_USER=admin
 
 # App URLs
 NEXT_PUBLIC_APP_URL=https://${PANEL_DOMAIN}
 NEXT_PUBLIC_WEBMAIL_URL=https://${WEBMAIL_DOMAIN}
 NEXT_PUBLIC_DEFAULT_WORKSPACE_ID=
+NEXT_PUBLIC_APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.1.0")
 
 # Encryption
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -233,18 +239,16 @@ ufw default allow outgoing
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
-if [[ "$MAIL_CORE" == "mailcow" ]]; then
-  ufw allow 25/tcp comment 'SMTP'
-  ufw allow 465/tcp comment 'SMTPS'
-  ufw allow 587/tcp comment 'MSA'
-  ufw allow 993/tcp comment 'IMAPS'
-  ufw allow 995/tcp comment 'POP3S'
-fi
+ufw allow 25/tcp comment 'SMTP'
+ufw allow 465/tcp comment 'SMTPS'
+ufw allow 587/tcp comment 'MSA'
+ufw allow 993/tcp comment 'IMAPS'
+ufw allow 8080/tcp comment 'Stalwart API'
 ufw --force enable
 ok "Firewall configured"
 
 log "Building Docker images and starting services"
-docker compose --env-file .env.production up -d --build postgres redis app
+docker compose --env-file .env.production up -d --build postgres redis stalwart app
 ok "Services started"
 
 log "Waiting for PostgreSQL to be ready"
@@ -257,9 +261,9 @@ for i in {1..30}; do
   sleep 2
 done
 
-log "Running database migrations"
-docker compose --env-file .env.production exec -T app npx prisma migrate deploy
-ok "Migrations applied"
+log "Pushing database schema"
+docker compose --env-file .env.production exec -T app npx prisma db push --accept-data-loss
+ok "Schema applied"
 
 log "Seeding superadmin and default workspace"
 SEED_OUTPUT="$(docker compose --env-file .env.production exec -T app npm run db:seed --silent 2>/dev/null || echo "")"
@@ -269,6 +273,11 @@ if [[ -n "$DEFAULT_WORKSPACE_ID" ]]; then
   docker compose --env-file .env.production up -d --build app
   ok "Workspace seeded (ID: ${DEFAULT_WORKSPACE_ID})"
 fi
+
+log "Configuring Stalwart mail server"
+docker compose --env-file .env.production exec -T stalwart sh -c "mkdir -p /opt/stalwart-mail/config && echo 'auth.token = \"${STALWART_API_KEY}\"' >> /opt/stalwart-mail/config/config.toml" 2>/dev/null || warn "Stalwart config injection skipped (may need manual setup)"
+ok "Stalwart configured"
+
 echo ""
 
 # ---- Phase 5: Configure Reverse Proxy + SSL ----

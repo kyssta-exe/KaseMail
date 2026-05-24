@@ -50,9 +50,11 @@ export async function getCurrentUser() {
   return session.user
 }
 
+import { UnauthorizedError, ForbiddenError } from "./errors"
+
 export async function requireAuth(roles?: string[]) {
   const user = await getCurrentUser()
-  if (!user) throw new Error("Unauthorized")
-  if (roles && !roles.includes(user.role)) throw new Error("Forbidden")
+  if (!user) throw new UnauthorizedError()
+  if (roles && !roles.includes(user.role)) throw new ForbiddenError()
   return user
 }

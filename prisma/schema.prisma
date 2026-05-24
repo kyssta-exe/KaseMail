@@ -122,6 +122,7 @@ model Domain {
   mailboxes         Mailbox[]
   aliases           Alias[]
   dnsChecks         DnsCheck[]
+  quarantineMessages QuarantineMessage[]
 }
 
 model DnsCheck {
@@ -150,6 +151,7 @@ model Mailbox {
   updatedAt   DateTime      @updatedAt
   workspace   Workspace     @relation(fields: [workspaceId], references: [id])
   domain      Domain        @relation(fields: [domainId], references: [id])
+  quarantineMessages QuarantineMessage[]
 }
 
 model Alias {
@@ -197,4 +199,21 @@ model BackupJob {
   startedAt DateTime  @default(now())
   endedAt   DateTime?
   metadata  Json?
+}
+
+model QuarantineMessage {
+  id         String   @id @default(cuid())
+  domainId   String?
+  mailboxId  String?
+  sender     String
+  recipient  String
+  subject    String
+  reason     String
+  score      Float    @default(0)
+  status     String   @default("quarantined")
+  rawData    String?
+  releasedAt DateTime?
+  createdAt  DateTime @default(now())
+  domain     Domain?  @relation(fields: [domainId], references: [id])
+  mailbox    Mailbox? @relation(fields: [mailboxId], references: [id])
 }
