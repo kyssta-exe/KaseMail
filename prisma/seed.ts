@@ -11,10 +11,14 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email },
-    update: { role: "SUPERADMIN" },
+    update: {
+      displayName: process.env.SEED_SUPERADMIN_NAME || "Superadmin",
+      role: "SUPERADMIN",
+      passwordHash: await bcrypt.hash(password, 12),
+    },
     create: {
       email,
-      displayName: "Superadmin",
+      displayName: process.env.SEED_SUPERADMIN_NAME || "Superadmin",
       role: "SUPERADMIN",
       passwordHash: await bcrypt.hash(password, 12),
     },

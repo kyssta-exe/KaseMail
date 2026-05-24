@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils"
+import Image from "next/image"
+import kaseIcon from "./kase-icon.png"
 
 type KaseLogoProps = {
   className?: string
@@ -14,11 +16,11 @@ export function KaseLogo({ className, iconOnly = false, size = "md" }: KaseLogoP
     <div className={cn("flex items-center gap-2.5", className)}>
       <div
         className={cn(
-          "rounded-xl border border-slate-700 bg-slate-200 flex items-center justify-center font-bold text-slate-950 shadow-none",
+          "relative overflow-hidden rounded-xl border border-slate-700 bg-slate-200 shadow-none",
           iconSize
         )}
       >
-        K
+        <Image src={kaseIcon} alt="KaseMail" fill sizes="40px" className="object-cover" priority={size === "lg"} />
       </div>
       {!iconOnly && (
         <span className={cn("font-semibold tracking-tight text-[#f8fafc]", textSize)}>KaseMail</span>

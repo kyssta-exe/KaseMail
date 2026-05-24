@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { MailShell } from "@/components/layout/mail-shell"
 import { GlassCard } from "@/components/ui/glass-card"
 import { AppButton } from "@/components/ui/app-button"
+import { KaseLogo } from "@/components/ui/kase-logo"
 import {
   Paperclip, Star, ChevronLeft, ChevronDown, ExternalLink,
   Shield, Trash2, Archive, MoreHorizontal, Reply, Forward,
@@ -89,7 +90,7 @@ export default function InboxPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#050816] p-4">
         <GlassCard className="w-full max-w-sm p-8">
           <div className="flex justify-center mb-6">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-500 to-slate-400 text-2xl font-bold text-white shadow-lg shadow-black/40">K</div>
+            <KaseLogo iconOnly size="lg" />
           </div>
           <h1 className="text-center text-xl font-bold text-[#f8fafc] mb-1">Connect Mailbox</h1>
           <p className="text-center text-sm text-[#a7b0c3] mb-6">Enter your email credentials to access webmail.</p>
